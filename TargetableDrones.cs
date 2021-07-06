@@ -75,7 +75,11 @@ namespace Oxide.Plugins
             if (!IsDroneEligible(drone))
                 return;
 
-            MaybeAddTargetComponents(drone);
+            if (_pluginConfig.EnableTurretTargeting)
+                TurretTargetComponent.AddToDroneIfMissing(drone);
+
+            if (_pluginConfig.EnableSAMTargeting)
+                SAMTargetComponent.AddToDroneIfMissing(drone);
         }
 
         // Avoid unwanted trigger interactions.
@@ -260,15 +264,6 @@ namespace Oxide.Plugins
                     return true;
             }
             return false;
-        }
-
-        private static void MaybeAddTargetComponents(Drone drone)
-        {
-            if (_pluginConfig.EnableTurretTargeting)
-                TurretTargetComponent.AddToDroneIfMissing(drone);
-
-            if (_pluginConfig.EnableSAMTargeting)
-                SAMTargetComponent.AddToDroneIfMissing(drone);
         }
 
         private static bool IsDroneEligible(Drone drone) =>
