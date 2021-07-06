@@ -6,6 +6,8 @@
 - Allows sharing turret/SAM authorization with team, clan and friends to avoid targeting their drones
 - Allows stealing enemy drones to sneak past enemy defenses
 
+**Highly recommended**: [Drone Settings](https://umod.org/plugins/drone-settings) -- Allows configuring toughness of drones. Without this, Auto Turrets and SAM Sites may not be able to destroy drones.
+
 ## Permissions
 
 - `targetabledrones.untargetable` -- Drones deployed by players with this permission cannot be targeted by any Auto Turrets or SAM Sites.
