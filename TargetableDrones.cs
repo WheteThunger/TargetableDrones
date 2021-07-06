@@ -59,8 +59,11 @@ namespace Oxide.Plugins
                 if (drone == null || !IsDroneEligible(drone))
                     continue;
 
-                TurretTargetComponent.RemoveFromDrone(drone);
-                SAMTargetComponent.RemoveFromDrone(drone);
+                if (_pluginConfig.EnableTurretTargeting)
+                    TurretTargetComponent.RemoveFromDrone(drone);
+
+                if (_pluginConfig.EnableSAMTargeting)
+                    SAMTargetComponent.RemoveFromDrone(drone);
             }
 
             _pluginConfig = null;
