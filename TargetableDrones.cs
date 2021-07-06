@@ -49,6 +49,9 @@ namespace Oxide.Plugins
             }
 
             Subscribe(nameof(OnEntitySpawned));
+
+            if (!_pluginConfig.EnableTurretTargeting)
+                Unsubscribe(nameof(OnDroneScaled));
         }
 
         private void Unload()
