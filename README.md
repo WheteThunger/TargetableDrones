@@ -1,8 +1,10 @@
 ## Features
 
-- Allows RC drones to be targeted by Auto Turrets and SAM Sites
-- Allows sharing authorization with team, clan and friends
-- Side effect: Allows drones to land on the cargo ship
+- Allows SAM Sites to target RC drones
+- Allows player Auto Turrets to target RC drones
+  - Side effect: Allows drones to land on the cargo ship
+- Allows sharing turret/SAM authorization with team, clan and friends to avoid targeting their drones
+- Allows stealing enemy drones to sneak past enemy defenses
 
 ## Configuration
 
@@ -52,13 +54,3 @@ Note: If you are unable to steer the drone, that is likely because you have a pl
 You can use standard hooks to prevent Auto Turrets and SAM Sites from targeting drones under specific circumstances.
 - `bool? OnTurretTarget(AutoTurret turret, Drone drone)`
 - `bool? OnSamSiteTarget(SamSite samSite, Drone drone)`
-
-#### OnDroneTargetableBecome
-
-```csharp
-bool? OnDroneTargetableBecome(Drone drone)
-```
-
-- Called when a drone is about to become targetable by Auto Turrets and SAM Sites
-- Returning `false` will prevent the drone from becoming targetable
-- Returning `null` will result in the default behavior

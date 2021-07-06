@@ -1,8 +1,8 @@
 ﻿using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 using Newtonsoft.Json.Serialization;
-using Oxide.Core;
 using Oxide.Core.Plugins;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using UnityEngine;
@@ -10,14 +10,14 @@ using VLB;
 
 namespace Oxide.Plugins
 {
-    [Info("Targetable Drones", "WhiteThunder", "0.1.0")]
+    [Info("Targetable Drones", "WhiteThunder", "0.2.0")]
     [Description("Allows RC drones to be targeted by Auto Turrets and SAM Sites.")]
     internal class TargetableDrones : CovalencePlugin
     {
         #region Fields
 
         [PluginReference]
-        private Plugin Clans, Friends;
+        private Plugin Clans, Friends, DroneScaleManager;
 
         private static TargetableDrones _pluginInstance;
         private static Configuration _pluginConfig;
@@ -29,6 +29,7 @@ namespace Oxide.Plugins
         private void Init()
         {
             _pluginInstance = this;
+
             Unsubscribe(nameof(OnEntitySpawned));
         }
 
@@ -48,7 +49,21 @@ namespace Oxide.Plugins
 
         private void Unload()
         {
-            TargetComponent.DestroyAll();
+            foreach (var entity in BaseNetworkable.serverEntities)
+            {
+                var drone = entity as Drone;
+                if (drone == null || !IsDroneEligible(drone))
+                    continue;
+
+                var turretComponent = drone.GetComponent<TurretTargetComponent>();
+                if (turretComponent != null)
+                    UnityEngine.Object.DestroyImmediate(turretComponent);
+
+                var samComponent = drone.GetComponent<SAMTargetComponent>();
+                if (samComponent != null)
+                    UnityEngine.Object.DestroyImmediate(samComponent);
+            }
+
             _pluginConfig = null;
             _pluginInstance = null;
         }
@@ -58,12 +73,7 @@ namespace Oxide.Plugins
             if (!IsDroneEligible(drone))
                 return;
 
-            // Delay to give other plugins a moment to cache the drone id so they can block this.
-            NextTick(() =>
-            {
-                if (drone != null)
-                    TryAddTargetComponent(drone);
-            });
+            MaybeAddTargetComponents(drone);
         }
 
         // Avoid unwanted trigger interactions.
@@ -168,27 +178,6 @@ namespace Oxide.Plugins
             return null;
         }
 
-        private static bool SameTeam(ulong userId, ulong otherUserId) =>
-            RelationshipManager.ServerInstance.FindPlayersTeam(userId)?.members.Contains(otherUserId) ?? false;
-
-        private static bool HasFriend(ulong userId, ulong otherUserId)
-        {
-            var friendsResult = _pluginInstance.Friends?.Call("HasFriend", userId, otherUserId);
-            return friendsResult is bool && (bool)friendsResult;
-        }
-
-        private static bool SameClan(ulong userId, ulong otherUserId)
-        {
-            var clanResult = _pluginInstance.Clans?.Call("IsClanMember", userId.ToString(), otherUserId.ToString());
-            return clanResult is bool && (bool)clanResult;
-        }
-
-        private static bool AreAllies(ulong userId, ulong otherUserId)
-        {
-            var clanResult = _pluginInstance.Clans?.Call("IsAllyPlayer", userId.ToString(), otherUserId.ToString());
-            return clanResult is bool && (bool)clanResult;
-        }
-
         // Make drone turrets retaliate against other turrets.
         private void OnEntityTakeDamage(Drone drone, HitInfo info)
         {
@@ -223,14 +212,42 @@ namespace Oxide.Plugins
             droneTurret.SetTarget(turretInitiator);
         }
 
+        private void OnDroneScaled(Drone drone, BaseEntity rootEntity, float scale, float previousScale)
+        {
+            if (scale == 1 || rootEntity.IsDestroyed)
+                return;
+
+            TurretTargetComponent.AddToRootEntityIfMissing(drone, rootEntity);
+        }
+
         #endregion
 
         #region Helper Methods
 
-        private static bool TargetComponentWasBlocked(Drone drone)
+        private static bool SameTeam(ulong userId, ulong otherUserId) =>
+            RelationshipManager.ServerInstance.FindPlayersTeam(userId)?.members.Contains(otherUserId) ?? false;
+
+        private static bool HasFriend(ulong userId, ulong otherUserId)
         {
-            object hookResult = Interface.CallHook("OnDroneTargetableBecome", drone);
-            return hookResult is bool && (bool)hookResult == false;
+            var friendsResult = _pluginInstance.Friends?.Call("HasFriend", userId, otherUserId);
+            return friendsResult is bool && (bool)friendsResult;
+        }
+
+        private static bool SameClan(ulong userId, ulong otherUserId)
+        {
+            var clanResult = _pluginInstance.Clans?.Call("IsClanMember", userId.ToString(), otherUserId.ToString());
+            return clanResult is bool && (bool)clanResult;
+        }
+
+        private static bool AreAllies(ulong userId, ulong otherUserId)
+        {
+            var clanResult = _pluginInstance.Clans?.Call("IsAllyPlayer", userId.ToString(), otherUserId.ToString());
+            return clanResult is bool && (bool)clanResult;
+        }
+
+        private static BaseEntity GetRootEntity(Drone drone)
+        {
+            return _pluginInstance.DroneScaleManager?.Call("API_GetRootEntity", drone) as BaseEntity;
         }
 
         private static bool IsAuthorized(AutoTurret turret, ulong userId)
@@ -243,13 +260,13 @@ namespace Oxide.Plugins
             return false;
         }
 
-        private static bool TryAddTargetComponent(Drone drone)
+        private static void MaybeAddTargetComponents(Drone drone)
         {
-            if (TargetComponentWasBlocked(drone))
-                return false;
+            if (_pluginConfig.EnableTurretTargeting)
+                TurretTargetComponent.AddToDroneIfMissing(drone);
 
-            TargetComponent.AddToDrone(drone);
-            return true;
+            if (_pluginConfig.EnableSAMTargeting)
+                SAMTargetComponent.AddToDroneIfMissing(drone);
         }
 
         private static bool IsDroneEligible(Drone drone) =>
@@ -264,10 +281,8 @@ namespace Oxide.Plugins
         private static AutoTurret GetDroneTurret(Drone drone) =>
             drone.GetSlot(BaseEntity.Slot.UpperModifier) as AutoTurret;
 
-        private static bool IsTargetable(Drone drone)
-        {
-            return drone.IsBeingControlled && !drone.isGrounded;
-        }
+        private static bool IsTargetable(Drone drone) =>
+            drone.IsBeingControlled && !drone.isGrounded;
 
         private Vector3 EntityCenterPoint(BaseEntity entity) =>
             entity.transform.TransformPoint(entity.bounds.center);
@@ -302,55 +317,40 @@ namespace Oxide.Plugins
 
         #region Custom Targeting
 
-        private class TargetComponent : EntityComponent<Drone>, SamSite.ISamSiteTarget
+        private class TurretTargetComponent : EntityComponent<BaseEntity>
         {
-            public static TargetComponent GetForDrone(Drone drone) =>
-                drone.gameObject.GetComponent<TargetComponent>();
-
-            public static TargetComponent AddToDrone(Drone drone) =>
-                drone.GetOrAddComponent<TargetComponent>();
-
-            public static void DestroyAll()
+            public static void AddToDroneIfMissing(Drone drone)
             {
-                foreach (var entity in BaseNetworkable.serverEntities)
-                {
-                    var drone = entity as Drone;
-                    if (drone == null || !IsDroneEligible(drone))
-                        continue;
+                // Must be added to the drone itself since the root entity (SphereEntity) is not a BaseCombatEntity.
+                drone.GetOrAddComponent<TurretTargetComponent>().InitForDrone(drone);
 
-                    var component = GetForDrone(drone);
-                    if (component == null)
-                        continue;
-
-                    DestroyImmediate(component);
-                }
+                // Add to the root entity to ensure consistency with side effect of landing on cargo ship.
+                var rootEntity = GetRootEntity(drone);
+                if (rootEntity != null)
+                    AddToRootEntityIfMissing(drone, rootEntity);
             }
 
-            // SAM Site vanilla targeting will call this method.
-            public bool IsValidSAMTarget()
-            {
-                return _pluginConfig.EnableSAMTargeting
-                    ? IsTargetable(baseEntity)
-                    : false;
-            }
+            public static void AddToRootEntityIfMissing(Drone drone, BaseEntity rootEntity) =>
+                rootEntity.GetOrAddComponent<TurretTargetComponent>().InitForDrone(drone);
 
+            private Drone _ownerDrone;
             private GameObject _child;
 
-            private void Awake()
+            private TurretTargetComponent InitForDrone(Drone drone)
             {
+                _ownerDrone = drone;
                 AddChildLayerForAutoTurrets();
+                return this;
             }
 
             private void AddChildLayerForAutoTurrets()
             {
-                if (!_pluginConfig.EnableTurretTargeting)
-                    return;
-
                 _child = gameObject.CreateChild();
                 _child.layer = (int)Rust.Layer.Player_Server;
-                var boxCollider = _child.gameObject.AddComponent<BoxCollider>();
-                boxCollider.size = baseEntity.bounds.extents;
-                boxCollider.isTrigger = true;
+
+                var triggerCollider = _child.gameObject.AddComponent<BoxCollider>();
+                triggerCollider.size = _ownerDrone.bounds.extents;
+                triggerCollider.isTrigger = true;
             }
 
             private void OnDestroy()
@@ -358,6 +358,16 @@ namespace Oxide.Plugins
                 if (_child != null)
                     Destroy(_child);
             }
+        }
+
+        private class SAMTargetComponent : EntityComponent<Drone>, SamSite.ISamSiteTarget
+        {
+            public static void AddToDroneIfMissing(Drone drone) =>
+                drone.GetOrAddComponent<SAMTargetComponent>();
+
+            // SAM Site vanilla targeting will call this method.
+            public bool IsValidSAMTarget() =>
+                IsTargetable(baseEntity);
         }
 
         #endregion
@@ -485,8 +495,9 @@ namespace Oxide.Plugins
                     SaveConfig();
                 }
             }
-            catch
+            catch (Exception e)
             {
+                LogError(e.Message);
                 LogWarning($"Configuration file {Name}.json is invalid; using defaults");
                 LoadDefaultConfig();
             }
