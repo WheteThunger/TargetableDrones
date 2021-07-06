@@ -61,7 +61,10 @@ namespace Oxide.Plugins
 
                 var turretComponent = drone.GetComponent<TurretTargetComponent>();
                 if (turretComponent != null)
+                {
                     UnityEngine.Object.DestroyImmediate(turretComponent);
+                    RemoveFromAutoTurretTriggers(drone);
+                }
 
                 var samComponent = drone.GetComponent<SAMTargetComponent>();
                 if (samComponent != null)
@@ -297,16 +300,15 @@ namespace Oxide.Plugins
                 return false;
 
             return true;
-
         }
 
-        private Vector3 EntityCenterPoint(BaseEntity entity) =>
+        private static Vector3 EntityCenterPoint(BaseEntity entity) =>
             entity.transform.TransformPoint(entity.bounds.center);
 
-        private Vector3 GetLocalVelocityServer(Drone drone) =>
+        private static Vector3 GetLocalVelocityServer(Drone drone) =>
             drone.body.velocity;
 
-        private Vector3 GetEstimatedPosition(SamSite samSite, Vector3 targetVelocity)
+        private static Vector3 GetEstimatedPosition(SamSite samSite, Vector3 targetVelocity)
         {
             // Copied from vanilla code for predicting target movement.
             var eyePointPosition = samSite.eyePoint.transform.position;
@@ -327,6 +329,22 @@ namespace Oxide.Plugins
             }
 
             return estimatedPoint;
+        }
+
+        private static void RemoveFromAutoTurretTriggers(Drone drone)
+        {
+            if (drone.triggers == null || drone.triggers.Count == 0)
+                return;
+
+            foreach (var trigger in drone.triggers.ToArray())
+            {
+                if (!(trigger is TargetTrigger))
+                    continue;
+
+                var autoTurret = trigger.gameObject.ToBaseEntity() as AutoTurret;
+                if (autoTurret != null && autoTurret.targetTrigger == trigger)
+                    trigger.RemoveEntity(drone);
+            }
         }
 
         #endregion
