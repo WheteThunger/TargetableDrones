@@ -19,6 +19,8 @@ namespace Oxide.Plugins
         [PluginReference]
         private Plugin Clans, Friends, DroneScaleManager;
 
+        private const string PermissionUntargetable = "targetabledrones.untargetable";
+
         private static TargetableDrones _pluginInstance;
         private static Configuration _pluginConfig;
 
@@ -29,6 +31,8 @@ namespace Oxide.Plugins
         private void Init()
         {
             _pluginInstance = this;
+
+            permission.RegisterPermission(PermissionUntargetable, this);
 
             Unsubscribe(nameof(OnEntitySpawned));
         }
@@ -281,8 +285,20 @@ namespace Oxide.Plugins
         private static AutoTurret GetDroneTurret(Drone drone) =>
             drone.GetSlot(BaseEntity.Slot.UpperModifier) as AutoTurret;
 
-        private static bool IsTargetable(Drone drone) =>
-            drone.IsBeingControlled && !drone.isGrounded;
+        private static bool IsTargetable(Drone drone)
+        {
+            if (drone.isGrounded || !drone.IsBeingControlled)
+                return false;
+
+            if (drone.OwnerID == 0)
+                return true;
+
+            if (_pluginInstance.permission.UserHasPermission(drone.OwnerID.ToString(), PermissionUntargetable))
+                return false;
+
+            return true;
+
+        }
 
         private Vector3 EntityCenterPoint(BaseEntity entity) =>
             entity.transform.TransformPoint(entity.bounds.center);

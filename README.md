@@ -6,6 +6,10 @@
 - Allows sharing turret/SAM authorization with team, clan and friends to avoid targeting their drones
 - Allows stealing enemy drones to sneak past enemy defenses
 
+## Permissions
+
+- `targetabledrones.untargetable` -- Drones deployed by players with this permission cannot be targeted by any Auto Turrets or SAM Sites.
+
 ## Configuration
 
 Default configuration:
