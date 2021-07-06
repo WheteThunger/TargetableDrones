@@ -59,16 +59,8 @@ namespace Oxide.Plugins
                 if (drone == null || !IsDroneEligible(drone))
                     continue;
 
-                var turretComponent = drone.GetComponent<TurretTargetComponent>();
-                if (turretComponent != null)
-                {
-                    UnityEngine.Object.DestroyImmediate(turretComponent);
-                    RemoveFromAutoTurretTriggers(drone);
-                }
-
-                var samComponent = drone.GetComponent<SAMTargetComponent>();
-                if (samComponent != null)
-                    UnityEngine.Object.DestroyImmediate(samComponent);
+                TurretTargetComponent.RemoveFromDrone(drone);
+                SAMTargetComponent.RemoveFromDrone(drone);
             }
 
             _pluginConfig = null;
@@ -331,19 +323,19 @@ namespace Oxide.Plugins
             return estimatedPoint;
         }
 
-        private static void RemoveFromAutoTurretTriggers(Drone drone)
+        private static void RemoveFromAutoTurretTriggers(BaseEntity entity)
         {
-            if (drone.triggers == null || drone.triggers.Count == 0)
+            if (entity.triggers == null || entity.triggers.Count == 0)
                 return;
 
-            foreach (var trigger in drone.triggers.ToArray())
+            foreach (var trigger in entity.triggers.ToArray())
             {
                 if (!(trigger is TargetTrigger))
                     continue;
 
                 var autoTurret = trigger.gameObject.ToBaseEntity() as AutoTurret;
                 if (autoTurret != null && autoTurret.targetTrigger == trigger)
-                    trigger.RemoveEntity(drone);
+                    trigger.RemoveEntity(entity);
             }
         }
 
@@ -353,6 +345,9 @@ namespace Oxide.Plugins
 
         private class TurretTargetComponent : EntityComponent<BaseEntity>
         {
+            public static void AddToRootEntityIfMissing(Drone drone, BaseEntity rootEntity) =>
+                rootEntity.GetOrAddComponent<TurretTargetComponent>().InitForDrone(drone);
+
             public static void AddToDroneIfMissing(Drone drone)
             {
                 // Must be added to the drone itself since the root entity (SphereEntity) is not a BaseCombatEntity.
@@ -364,8 +359,24 @@ namespace Oxide.Plugins
                     AddToRootEntityIfMissing(drone, rootEntity);
             }
 
-            public static void AddToRootEntityIfMissing(Drone drone, BaseEntity rootEntity) =>
-                rootEntity.GetOrAddComponent<TurretTargetComponent>().InitForDrone(drone);
+            private static void RemoveFromEntity(BaseEntity entity)
+            {
+                var turretComponent = entity.GetComponent<TurretTargetComponent>();
+                if (turretComponent != null)
+                {
+                    UnityEngine.Object.DestroyImmediate(turretComponent);
+                    RemoveFromAutoTurretTriggers(entity);
+                }
+            }
+
+            public static void RemoveFromDrone(Drone drone)
+            {
+                RemoveFromEntity(drone);
+
+                var rootEntity = GetRootEntity(drone);
+                if (rootEntity != null)
+                    RemoveFromEntity(rootEntity);
+            }
 
             private Drone _ownerDrone;
             private GameObject _child;
@@ -398,6 +409,13 @@ namespace Oxide.Plugins
         {
             public static void AddToDroneIfMissing(Drone drone) =>
                 drone.GetOrAddComponent<SAMTargetComponent>();
+
+            public static void RemoveFromDrone(Drone drone)
+            {
+                var samComponent = drone.GetComponent<SAMTargetComponent>();
+                if (samComponent != null)
+                    UnityEngine.Object.DestroyImmediate(samComponent);
+            }
 
             // SAM Site vanilla targeting will call this method.
             public bool IsValidSAMTarget() =>
