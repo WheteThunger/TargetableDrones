@@ -3,8 +3,9 @@
 - Allows SAM Sites to target RC drones
 - Allows player Auto Turrets to target RC drones
   - Side effect: Allows drones to land on the cargo ship
+- Uses turret authorization and SAM site ownership to determine whether to target player drones
+  - This effectively creates a mechanic where stealing an enemy drone can allow you to fly it past enemy base defenses
 - Allows sharing turret/SAM authorization with team, clan and friends to avoid targeting their drones
-- Allows stealing enemy drones to sneak past enemy defenses
 
 **Highly recommended**: [Drone Settings](https://umod.org/plugins/drone-settings) -- Allows configuring toughness of drones. Without this, Auto Turrets and SAM Sites may not be able to destroy drones.
 
