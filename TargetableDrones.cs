@@ -10,7 +10,7 @@ using VLB;
 
 namespace Oxide.Plugins
 {
-    [Info("Targetable Drones", "WhiteThunder", "1.0.0")]
+    [Info("Targetable Drones", "WhiteThunder", "1.0.1")]
     [Description("Allows RC drones to be targeted by Auto Turrets and SAM Sites.")]
     internal class TargetableDrones : CovalencePlugin
     {
@@ -283,7 +283,7 @@ namespace Oxide.Plugins
 
         private static bool IsTargetable(Drone drone)
         {
-            if (drone.isGrounded || !drone.IsBeingControlled)
+            if (drone.isGrounded)
                 return false;
 
             if (drone.OwnerID == 0)
