@@ -146,7 +146,7 @@ namespace Oxide.Plugins
             // If the drone has a turret, consider the drone owned by the turret owner.
             var droneOwnerId = GetDroneTurret(drone)?.OwnerID ?? drone.OwnerID;
 
-            if (turret.OwnerID == 0 || droneOwnerId == 0)
+            if (droneOwnerId == 0)
                 return null;
 
             // Direct authorization trumps anything else.
@@ -154,7 +154,7 @@ namespace Oxide.Plugins
                 return false;
 
             // In case the owner lost authorization, don't share with team/friends/clan.
-            if (!IsAuthorized(turret, turret.OwnerID))
+            if (turret.OwnerID == 0 || !IsAuthorized(turret, turret.OwnerID))
                 return null;
 
             if (turret.OwnerID == droneOwnerId
