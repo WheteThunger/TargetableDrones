@@ -7,10 +7,11 @@ using System.Collections.Generic;
 using System.Linq;
 using UnityEngine;
 using VLB;
+using static SamSite;
 
 namespace Oxide.Plugins
 {
-    [Info("Targetable Drones", "WhiteThunder", "1.0.1")]
+    [Info("Targetable Drones", "WhiteThunder", "1.0.2")]
     [Description("Allows RC drones to be targeted by Auto Turrets and SAM Sites.")]
     internal class TargetableDrones : CovalencePlugin
     {
@@ -24,6 +25,8 @@ namespace Oxide.Plugins
         private static TargetableDrones _pluginInstance;
         private static Configuration _pluginConfig;
 
+        private float? SqrScanRadius;
+
         #endregion
 
         #region Hooks
@@ -35,6 +38,20 @@ namespace Oxide.Plugins
             permission.RegisterPermission(PermissionUntargetable, this);
 
             Unsubscribe(nameof(OnEntitySpawned));
+
+            if (!_pluginConfig.EnableSAMTargeting)
+            {
+                Unsubscribe(nameof(OnSamSiteTargetScan));
+                Unsubscribe(nameof(OnSamSiteTarget));
+            }
+
+            if (!_pluginConfig.EnableTurretTargeting)
+            {
+                Unsubscribe(nameof(OnEntityEnter));
+                Unsubscribe(nameof(OnTurretTarget));
+                Unsubscribe(nameof(OnEntityTakeDamage));
+                Unsubscribe(nameof(OnDroneScaled));
+            }
         }
 
         private void OnServerInitialized()
@@ -49,9 +66,6 @@ namespace Oxide.Plugins
             }
 
             Subscribe(nameof(OnEntitySpawned));
-
-            if (!_pluginConfig.EnableTurretTargeting)
-                Unsubscribe(nameof(OnDroneScaled));
         }
 
         private void Unload()
@@ -68,6 +82,9 @@ namespace Oxide.Plugins
                 if (_pluginConfig.EnableSAMTargeting)
                     SAMTargetComponent.RemoveFromDrone(drone);
             }
+
+            // Just in case since this is static.
+            SAMTargetComponent.DroneComponents.Clear();
 
             _pluginConfig = null;
             _pluginInstance = null;
@@ -111,22 +128,6 @@ namespace Oxide.Plugins
             return null;
         }
 
-        // Adjust the sam site aim last minute as it's about to shoot.
-        // This addresses the problem where vanilla targeting can't predict drone movement.
-        private void CanSamSiteShoot(SamSite samSite)
-        {
-            var target = samSite.currentTarget;
-            if (target == null)
-                return;
-
-            var drone = target as Drone;
-            if (drone == null)
-                return;
-
-            var estimatedPoint = GetEstimatedPosition(samSite, GetLocalVelocityServer(drone));
-            samSite.currentAimDir = (estimatedPoint - samSite.eyePoint.transform.position).normalized;
-        }
-
         private bool? OnTurretTarget(AutoTurret turret, Drone drone)
         {
             if (turret == null || drone == null)
@@ -165,6 +166,27 @@ namespace Oxide.Plugins
                 return false;
 
             return null;
+        }
+
+        private void OnSamSiteTargetScan(SamSite samSite, List<ISamSiteTarget> targetList)
+        {
+            if (SAMTargetComponent.DroneComponents.Count == 0)
+                return;
+
+            var samSitePosition = samSite.transform.position;
+
+            if (SqrScanRadius == null)
+            {
+                // SamSite.targetTypeVehicle is not set until the first Sam Site spawns.
+                SqrScanRadius = Mathf.Pow(SamSite.targetTypeVehicle.scanRadius, 2);
+            }
+
+            foreach (var droneComponent in SAMTargetComponent.DroneComponents)
+            {
+                // Distance checking is way more efficient than collider checking, even with hundreds of drones.
+                if ((samSitePosition - droneComponent.Position).sqrMagnitude <= SqrScanRadius.Value)
+                    targetList.Add(droneComponent);
+            }
         }
 
         private bool? OnSamSiteTarget(SamSite samSite, Drone drone)
@@ -281,7 +303,7 @@ namespace Oxide.Plugins
         private static AutoTurret GetDroneTurret(Drone drone) =>
             drone.GetSlot(BaseEntity.Slot.UpperModifier) as AutoTurret;
 
-        private static bool IsTargetable(Drone drone)
+        private static bool IsTargetable(Drone drone, bool isStaticSamSite = false)
         {
             if (drone.isGrounded)
                 return false;
@@ -292,36 +314,10 @@ namespace Oxide.Plugins
             if (_pluginInstance.permission.UserHasPermission(drone.OwnerID.ToString(), PermissionUntargetable))
                 return false;
 
-            return true;
-        }
+            if (isStaticSamSite)
+                return true;
 
-        private static Vector3 EntityCenterPoint(BaseEntity entity) =>
-            entity.transform.TransformPoint(entity.bounds.center);
-
-        private static Vector3 GetLocalVelocityServer(Drone drone) =>
-            drone.body.velocity;
-
-        private static Vector3 GetEstimatedPosition(SamSite samSite, Vector3 targetVelocity)
-        {
-            // Copied from vanilla code for predicting target movement.
-            var eyePointPosition = samSite.eyePoint.transform.position;
-            float speed = samSite.projectileTest.Get().GetComponent<ServerProjectile>().speed;
-            Vector3 centerPoint = EntityCenterPoint(samSite.currentTarget);
-
-            float entityDistance = Vector3.Distance(centerPoint, eyePointPosition);
-            float travelTime = entityDistance / speed;
-            Vector3 estimatedPoint = centerPoint + targetVelocity * travelTime;
-
-            travelTime = Vector3.Distance(estimatedPoint, eyePointPosition) / speed;
-            estimatedPoint = centerPoint + targetVelocity * travelTime;
-
-            if (targetVelocity.magnitude > 0.1f)
-            {
-                float adjustment = Mathf.Sin(Time.time * 3f) * (1f + travelTime * 0.5f);
-                estimatedPoint += targetVelocity.normalized * adjustment;
-            }
-
-            return estimatedPoint;
+            return !BaseVehicle.InSafeZone(drone.triggers, drone.transform.position);
         }
 
         private static void RemoveFromAutoTurretTriggers(BaseEntity entity)
@@ -406,8 +402,10 @@ namespace Oxide.Plugins
             }
         }
 
-        private class SAMTargetComponent : EntityComponent<Drone>, SamSite.ISamSiteTarget
+        private class SAMTargetComponent : FacepunchBehaviour, ISamSiteTarget
         {
+            public static HashSet<SAMTargetComponent> DroneComponents = new HashSet<SAMTargetComponent>();
+
             public static void AddToDroneIfMissing(Drone drone) =>
                 drone.GetOrAddComponent<SAMTargetComponent>();
 
@@ -418,9 +416,31 @@ namespace Oxide.Plugins
                     UnityEngine.Object.DestroyImmediate(samComponent);
             }
 
-            // SAM Site vanilla targeting will call this method.
-            public bool IsValidSAMTarget() =>
-                IsTargetable(baseEntity);
+            private Drone _drone;
+            private Transform _transform;
+
+            private void Awake()
+            {
+                _drone = GetComponent<Drone>();
+                _transform = transform;
+                DroneComponents.Add(this);
+            }
+
+            public Vector3 Position => _transform.position;
+
+            public SamTargetType SAMTargetType => SamSite.targetTypeVehicle;
+
+            public bool isClient => false;
+
+            public bool IsValidSAMTarget(bool isStaticSamSite) => IsTargetable(_drone, isStaticSamSite);
+
+            public Vector3 CenterPoint() => _drone.CenterPoint();
+
+            public Vector3 GetWorldVelocity() => _drone.body.velocity;
+
+            public bool IsVisible(Vector3 position, float distance) => _drone.IsVisible(position, distance);
+
+            private void OnDestroy() => DroneComponents.Remove(this);
         }
 
         #endregion
