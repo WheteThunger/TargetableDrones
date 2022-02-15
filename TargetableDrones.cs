@@ -11,7 +11,7 @@ using static SamSite;
 
 namespace Oxide.Plugins
 {
-    [Info("Targetable Drones", "WhiteThunder", "1.0.2")]
+    [Info("Targetable Drones", "WhiteThunder", "1.0.3")]
     [Description("Allows RC drones to be targeted by Auto Turrets and SAM Sites.")]
     internal class TargetableDrones : CovalencePlugin
     {
@@ -24,6 +24,8 @@ namespace Oxide.Plugins
 
         private static TargetableDrones _pluginInstance;
         private static Configuration _pluginConfig;
+
+        private readonly object _boxedFalse = false;
 
         private float? SqrScanRadius;
 
@@ -103,7 +105,7 @@ namespace Oxide.Plugins
         }
 
         // Avoid unwanted trigger interactions.
-        private bool? OnEntityEnter(TriggerBase trigger, Drone drone)
+        private object OnEntityEnter(TriggerBase trigger, Drone drone)
         {
             if (trigger is PlayerDetectionTrigger)
             {
@@ -112,7 +114,7 @@ namespace Oxide.Plugins
                 if (trigger.GetComponentInParent<BaseEntity>() is LaserDetector)
                     return null;
 
-                return false;
+                return _boxedFalse;
             }
 
             if (trigger is TargetTrigger)
@@ -122,27 +124,27 @@ namespace Oxide.Plugins
                 if (trigger.GetComponentInParent<BaseEntity>() is AutoTurret)
                     return null;
 
-                return false;
+                return _boxedFalse;
             }
 
             return null;
         }
 
-        private bool? OnTurretTarget(AutoTurret turret, Drone drone)
+        private object OnTurretTarget(AutoTurret turret, Drone drone)
         {
             if (turret == null || drone == null)
                 return null;
 
             // Drones are not inherently hostile.
             if (turret is NPCAutoTurret)
-                return false;
+                return _boxedFalse;
 
             if (!IsTargetable(drone))
-                return false;
+                return _boxedFalse;
 
             // Don't allow a drone turret to target its parent drone.
             if (GetParentDrone(turret) == drone)
-                return false;
+                return _boxedFalse;
 
             // If the drone has a turret, consider the drone owned by the turret owner.
             var droneOwnerId = GetDroneTurret(drone)?.OwnerID ?? drone.OwnerID;
@@ -152,7 +154,7 @@ namespace Oxide.Plugins
 
             // Direct authorization trumps anything else.
             if (IsAuthorized(turret, droneOwnerId))
-                return false;
+                return _boxedFalse;
 
             // In case the owner lost authorization, don't share with team/friends/clan.
             if (turret.OwnerID == 0 || !IsAuthorized(turret, turret.OwnerID))
@@ -163,7 +165,7 @@ namespace Oxide.Plugins
                 || _pluginConfig.DefaultSharingSettings.Friends && HasFriend(turret.OwnerID, droneOwnerId)
                 || _pluginConfig.DefaultSharingSettings.Clan && SameClan(turret.OwnerID, droneOwnerId)
                 || _pluginConfig.DefaultSharingSettings.Allies && AreAllies(turret.OwnerID, droneOwnerId))
-                return false;
+                return _boxedFalse;
 
             return null;
         }
@@ -189,9 +191,13 @@ namespace Oxide.Plugins
             }
         }
 
-        private bool? OnSamSiteTarget(SamSite samSite, Drone drone)
+        private object OnSamSiteTarget(SamSite samSite, SAMTargetComponent droneComponent)
         {
             if (samSite.staticRespawn || samSite.OwnerID == 0)
+                return null;
+
+            var drone = droneComponent.Drone;
+            if (drone == null || drone.IsDestroyed)
                 return null;
 
             // If the drone has a turret, consider the drone owned by the turret owner.
@@ -204,7 +210,7 @@ namespace Oxide.Plugins
                 || _pluginConfig.DefaultSharingSettings.Friends && HasFriend(samSite.OwnerID, droneOwnerId)
                 || _pluginConfig.DefaultSharingSettings.Clan && SameClan(samSite.OwnerID, droneOwnerId)
                 || _pluginConfig.DefaultSharingSettings.Allies && AreAllies(samSite.OwnerID, droneOwnerId))
-                return false;
+                return _boxedFalse;
 
             return null;
         }
@@ -416,12 +422,12 @@ namespace Oxide.Plugins
                     UnityEngine.Object.DestroyImmediate(samComponent);
             }
 
-            private Drone _drone;
+            public Drone Drone { get; private set; }
             private Transform _transform;
 
             private void Awake()
             {
-                _drone = GetComponent<Drone>();
+                Drone = GetComponent<Drone>();
                 _transform = transform;
                 DroneComponents.Add(this);
             }
@@ -432,13 +438,13 @@ namespace Oxide.Plugins
 
             public bool isClient => false;
 
-            public bool IsValidSAMTarget(bool isStaticSamSite) => IsTargetable(_drone, isStaticSamSite);
+            public bool IsValidSAMTarget(bool isStaticSamSite) => IsTargetable(Drone, isStaticSamSite);
 
-            public Vector3 CenterPoint() => _drone.CenterPoint();
+            public Vector3 CenterPoint() => Drone.CenterPoint();
 
-            public Vector3 GetWorldVelocity() => _drone.body.velocity;
+            public Vector3 GetWorldVelocity() => Drone.body.velocity;
 
-            public bool IsVisible(Vector3 position, float distance) => _drone.IsVisible(position, distance);
+            public bool IsVisible(Vector3 position, float distance) => Drone.IsVisible(position, distance);
 
             private void OnDestroy() => DroneComponents.Remove(this);
         }
