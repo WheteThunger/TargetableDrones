@@ -2,9 +2,6 @@
 
 - Allows SAM Sites to target RC drones
 - Allows player Auto Turrets to target RC drones
-  - Side effect: Allows drones to land on the cargo ship
-- Uses turret authorization and SAM site ownership to determine whether to target player drones
-  - This effectively creates a mechanic where stealing an enemy drone can allow you to fly it past enemy base defenses
 - Allows sharing turret/SAM authorization with team, clan and friends to avoid targeting their drones
 
 **Highly recommended**: [Drone Settings](https://umod.org/plugins/drone-settings) -- Allows configuring toughness of drones. Without this, Auto Turrets and SAM Sites may not be able to destroy drones.
@@ -55,5 +52,5 @@ Drone attachments:
 ## Developer Hooks
 
 You can use standard hooks to prevent Auto Turrets and SAM Sites from targeting drones under specific circumstances.
-- `bool? OnTurretTarget(AutoTurret turret, Drone drone)`
-- `bool? OnSamSiteTarget(SamSite samSite, Drone drone)`
+- `object OnTurretTarget(AutoTurret turret, Drone drone)`
+- `object OnSamSiteTarget(SamSite samSite, Drone drone)`
