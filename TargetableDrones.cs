@@ -149,7 +149,7 @@ namespace Oxide.Plugins
             return null;
         }
 
-        private static ulong GetDroneOwnerId(Drone drone)
+        private static ulong GetDroneControllerOrOwnerId(Drone drone)
         {
             var controllerSteamId = drone.ControllingViewerId?.SteamId ?? 0;
             if (controllerSteamId != 0)
@@ -186,23 +186,23 @@ namespace Oxide.Plugins
             if (GetParentDrone(turret) == drone)
                 return False;
 
-            var droneOwnerId = GetDroneOwnerId(drone);
-            if (droneOwnerId == 0)
+            var droneControllerOrOwnerId = GetDroneControllerOrOwnerId(drone);
+            if (droneControllerOrOwnerId == 0)
                 return null;
 
             // Direct authorization trumps anything else.
-            if (IsAuthorized(turret, droneOwnerId))
+            if (turret.IsAuthed(droneControllerOrOwnerId))
                 return False;
 
             // In case the owner lost authorization, don't share with team/friends/clan.
-            if (turret.OwnerID == 0 || !IsAuthorized(turret, turret.OwnerID))
+            if (turret.OwnerID == 0 || !turret.IsAuthed(turret.OwnerID))
                 return null;
 
-            if (turret.OwnerID == droneOwnerId
-                || _config.DefaultSharingSettings.Team && SameTeam(turret.OwnerID, droneOwnerId)
-                || _config.DefaultSharingSettings.Friends && HasFriend(turret.OwnerID, droneOwnerId)
-                || _config.DefaultSharingSettings.Clan && SameClan(turret.OwnerID, droneOwnerId)
-                || _config.DefaultSharingSettings.Allies && AreAllies(turret.OwnerID, droneOwnerId))
+            if (turret.OwnerID == droneControllerOrOwnerId
+                || _config.DefaultSharingSettings.Team && SameTeam(turret.OwnerID, droneControllerOrOwnerId)
+                || _config.DefaultSharingSettings.Friends && HasFriend(turret.OwnerID, droneControllerOrOwnerId)
+                || _config.DefaultSharingSettings.Clan && SameClan(turret.OwnerID, droneControllerOrOwnerId)
+                || _config.DefaultSharingSettings.Allies && AreAllies(turret.OwnerID, droneControllerOrOwnerId))
                 return False;
 
             return null;
@@ -240,7 +240,7 @@ namespace Oxide.Plugins
             if (drone == null || drone.IsDestroyed)
                 return null;
 
-            var droneOwnerId = GetDroneOwnerId(drone);
+            var droneOwnerId = GetDroneControllerOrOwnerId(drone);
             if (droneOwnerId == 0)
                 return null;
 
@@ -307,17 +307,6 @@ namespace Oxide.Plugins
         private static bool SameTeam(ulong userId, ulong otherUserId)
         {
             return RelationshipManager.ServerInstance.FindPlayersTeam(userId)?.members.Contains(otherUserId) ?? false;
-        }
-
-        private static bool IsAuthorized(AutoTurret turret, ulong userId)
-        {
-            foreach (var entry in turret.authorizedPlayers)
-            {
-                if (entry.userid == userId)
-                    return true;
-            }
-
-            return false;
         }
 
         private static bool IsDroneEligible(Drone drone)
