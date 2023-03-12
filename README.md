@@ -18,6 +18,34 @@ Default configuration:
 {
   "EnableTurretTargeting": true,
   "EnableSAMTargeting": true,
+  "NPCTargeting": {
+    "Range": 60.0,
+    "EnabledByNpcPrefab": {
+      "assets/prefabs/npc/gingerbread/gingerbread_dungeon.prefab": false,
+      "assets/prefabs/npc/gingerbread/gingerbread_meleedungeon.prefab": false,
+      "assets/rust.ai/agents/npcplayer/humannpc/banditguard/npc_bandit_guard.prefab": false,
+      "assets/rust.ai/agents/npcplayer/humannpc/scientist/scientistnpc_cargo.prefab": false,
+      "assets/rust.ai/agents/npcplayer/humannpc/scientist/scientistnpc_cargo_turret_any.prefab": false,
+      "assets/rust.ai/agents/npcplayer/humannpc/scientist/scientistnpc_cargo_turret_lr300.prefab": false,
+      "assets/rust.ai/agents/npcplayer/humannpc/scientist/scientistnpc_ch47_gunner.prefab": false,
+      "assets/rust.ai/agents/npcplayer/humannpc/scientist/scientistnpc_excavator.prefab": false,
+      "assets/rust.ai/agents/npcplayer/humannpc/scientist/scientistnpc_full_any.prefab": false,
+      "assets/rust.ai/agents/npcplayer/humannpc/scientist/scientistnpc_full_lr300.prefab": false,
+      "assets/rust.ai/agents/npcplayer/humannpc/scientist/scientistnpc_full_mp5.prefab": false,
+      "assets/rust.ai/agents/npcplayer/humannpc/scientist/scientistnpc_full_pistol.prefab": false,
+      "assets/rust.ai/agents/npcplayer/humannpc/scientist/scientistnpc_full_shotgun.prefab": false,
+      "assets/rust.ai/agents/npcplayer/humannpc/scientist/scientistnpc_heavy.prefab": false,
+      "assets/rust.ai/agents/npcplayer/humannpc/scientist/scientistnpc_junkpile_pistol.prefab": false,
+      "assets/rust.ai/agents/npcplayer/humannpc/scientist/scientistnpc_oilrig.prefab": false,
+      "assets/rust.ai/agents/npcplayer/humannpc/scientist/scientistnpc_patrol.prefab": false,
+      "assets/rust.ai/agents/npcplayer/humannpc/scientist/scientistnpc_peacekeeper.prefab": false,
+      "assets/rust.ai/agents/npcplayer/humannpc/scientist/scientistnpc_roam.prefab": false,
+      "assets/rust.ai/agents/npcplayer/humannpc/scientist/scientistnpc_roamtethered.prefab": false,
+      "assets/rust.ai/agents/npcplayer/humannpc/tunneldweller/npc_tunneldweller.prefab": false,
+      "assets/rust.ai/agents/npcplayer/humannpc/tunneldweller/npc_tunneldwellerspawned.prefab": false,
+      "assets/rust.ai/agents/npcplayer/humannpc/underwaterdweller/npc_underwaterdweller.prefab": false
+    }
+  },
   "DefaultSharingSettings": {
     "Team": false,
     "Friends": false,
@@ -29,6 +57,9 @@ Default configuration:
 
 - `EnableTurretTargeting` (`true` or `false`) -- While `true`, drones can be targeted by Auto Turrets.
 - `EnableSAMTargeting` (`true` or `false`) -- While `true`, drones can be targeted by SAM Sites.
+- `NPCTargeting`
+  - `Range` (Default: `60.0`) -- Determines how far away NPCs can target drones.
+  - `EnabledByNpcPrefab` -- Determines whether each type of NPC can target drones.
 - `DefaultSharingSettings` (each `true` or `false`) -- These settings determine whether a player's Auto Turrets or SAM Sites will target drones deployed by their teammates, friends, clanmates, or ally clanmates.
 
 ## Recommended compatible plugins

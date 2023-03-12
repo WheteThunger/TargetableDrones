@@ -4,9 +4,12 @@ using Oxide.Core.Plugins;
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using Oxide.Core;
+using Rust.AI;
 using UnityEngine;
 using VLB;
 using static SamSite;
+using HumanNpc = global::HumanNPC;
 
 namespace Oxide.Plugins
 {
@@ -54,6 +57,11 @@ namespace Oxide.Plugins
 
         private void OnServerInitialized()
         {
+            if (_config.OnServerInitialized() && !_config.UsingDefaults)
+            {
+                SaveConfig();
+            }
+
             foreach (var entity in BaseNetworkable.serverEntities)
             {
                 var drone = entity as Drone;
@@ -83,6 +91,11 @@ namespace Oxide.Plugins
                 {
                     SAMTargetComponent.RemoveFromDrone(drone);
                 }
+
+                if (_config.NPCTargetingSettings.Enabled)
+                {
+                    NPCTargetComponent.RemoveFromDrone(drone);
+                }
             }
 
             // Just in case since this is static.
@@ -102,6 +115,11 @@ namespace Oxide.Plugins
             if (_config.EnableSAMTargeting)
             {
                 SAMTargetComponent.AddToDroneIfMissing(this, drone);
+            }
+
+            if (_config.NPCTargetingSettings.Enabled && !IsDroneOwnerExempt(drone))
+            {
+                NPCTargetComponent.AddToDrone(this, drone);
             }
         }
 
@@ -282,6 +300,10 @@ namespace Oxide.Plugins
 
         #region Helper Methods
 
+        public static void LogInfo(string message) => Interface.Oxide.LogInfo($"[Targetable Drones] {message}");
+        public static void LogWarning(string message) => Interface.Oxide.LogWarning($"[Targetable Drones] {message}");
+        public static void LogError(string message) => Interface.Oxide.LogError($"[Targetable Drones] {message}");
+
         private static bool SameTeam(ulong userId, ulong otherUserId)
         {
             return RelationshipManager.ServerInstance.FindPlayersTeam(userId)?.members.Contains(otherUserId) ?? false;
@@ -332,15 +354,20 @@ namespace Oxide.Plugins
             }
         }
 
+        private bool IsDroneOwnerExempt(Drone drone)
+        {
+            if (drone.OwnerID == 0)
+                return false;
+
+            return permission.UserHasPermission(drone.OwnerID.ToString(), PermissionUntargetable);
+        }
+
         private bool IsTargetable(Drone drone, bool isStaticSamSite = false)
         {
             if (drone.isGrounded)
                 return false;
 
-            if (drone.OwnerID == 0)
-                return true;
-
-            if (permission.UserHasPermission(drone.OwnerID.ToString(), PermissionUntargetable))
+            if (IsDroneOwnerExempt(drone))
                 return false;
 
             if (isStaticSamSite)
@@ -375,6 +402,212 @@ namespace Oxide.Plugins
         #endregion
 
         #region Custom Targeting
+
+        private class NPCTargetTriggerComponent : TriggerBase
+        {
+            public static NPCTargetTriggerComponent AddToDrone(TargetableDrones plugin, Drone drone, GameObject host)
+            {
+                var component = host.AddComponent<NPCTargetTriggerComponent>();
+                component._plugin = plugin;
+                component._drone = drone;
+                component.interestLayers = Rust.Layers.Mask.Player_Server;
+                return component;
+            }
+
+            private const int LayerMask = Rust.Layers.Mask.Default
+                | Rust.Layers.Mask.Vehicle_Detailed
+                | Rust.Layers.Mask.World
+                | Rust.Layers.Mask.Construction
+                | Rust.Layers.Mask.Terrain
+                | Rust.Layers.Mask.Vehicle_Large
+                | Rust.Layers.Mask.Tree;
+
+            private TargetableDrones _plugin;
+            private Drone _drone;
+            private List<BaseEntity> _contentsToRemove;
+            private Action _checkTriggerContents;
+
+            private NPCTargetTriggerComponent()
+            {
+                _checkTriggerContents = CheckTriggerContents;
+            }
+
+            public void CheckTriggerContents()
+            {
+                if (!HasAnyEntityContents)
+                {
+                    CancelInvoke(_checkTriggerContents);
+                    return;
+                }
+
+                foreach (var entity in entityContents)
+                {
+                    var humanNpc = entity as HumanNpc;
+                    if (humanNpc == null)
+                        continue;
+
+                    var memory = GetMemory(entity);
+                    if (memory == null)
+                        continue;
+
+                    if (IsTargetableBy(humanNpc))
+                    {
+                        AddToMemory(memory);
+                    }
+                    else
+                    {
+                        RemoveFromMemory(memory);
+                    }
+                }
+
+                if (_contentsToRemove?.Count > 0)
+                {
+                    foreach (var entity in _contentsToRemove)
+                    {
+                        entityContents.Remove(entity);
+                    }
+                }
+            }
+
+            public override GameObject InterestedInObject(GameObject obj)
+            {
+                obj = base.InterestedInObject(obj);
+                if (obj == null)
+                    return null;
+
+                var humanNpc = obj.ToBaseEntity() as HumanNpc;
+                if (humanNpc == null || GetMemory(humanNpc) == null)
+                    return null;
+
+                if (!_plugin._config.NPCTargetingSettings.IsAllowed(humanNpc))
+                    return null;
+
+                return humanNpc.gameObject;
+            }
+
+            public override void OnEntityEnter(BaseEntity entity)
+            {
+                base.OnEntityEnter(entity);
+
+                if (!HasAnyEntityContents || !entityContents.Contains(entity))
+                    return;
+
+                if (!IsInvoking(_checkTriggerContents))
+                {
+                    InvokeRepeating(_checkTriggerContents, UnityEngine.Random.Range(0, 1), 1);
+                }
+            }
+
+            public override void OnEntityLeave(BaseEntity entity)
+            {
+                base.OnEntityLeave(entity);
+                var memory = GetMemory(entity);
+                if (memory != null)
+                {
+                    RemoveFromMemory(memory);
+                }
+            }
+
+            private SimpleAIMemory GetMemory(BaseEntity entity)
+            {
+                return (entity as HumanNpc)?.Brain?.Senses?.Memory;
+            }
+
+            private bool IsTargetableBy(HumanNpc humanNpc)
+            {
+                if (!_drone.IsBeingControlled)
+                    return false;
+
+                var eyesPosition = humanNpc.isMounted
+                    ? humanNpc.eyes.worldMountedPosition
+                    : humanNpc.IsDucked()
+                        ? humanNpc.eyes.worldCrouchedPosition
+                        : !humanNpc.IsCrawling()
+                            ? humanNpc.eyes.worldStandingPosition
+                            : humanNpc.eyes.worldCrawlingPosition;
+
+                var layerMask = LayerMask;
+
+                if (humanNpc.AdditionalLosBlockingLayer != 0)
+                {
+                    layerMask |= 1 << humanNpc.AdditionalLosBlockingLayer;
+                }
+
+                return humanNpc.IsVisibleSpecificLayers(_drone.CenterPoint(), eyesPosition, layerMask);
+            }
+
+            private bool AddToMemory(SimpleAIMemory memory)
+            {
+                if (!memory.LOS.Add(_drone))
+                    return false;
+
+                memory.Players.Add(_drone);
+                memory.Targets.Add(_drone);
+                memory.Threats.Add(_drone);
+                return true;
+            }
+
+            private bool RemoveFromMemory(SimpleAIMemory memory)
+            {
+                if (!memory.LOS.Remove(_drone))
+                    return false;
+
+                memory.Players.Remove(_drone);
+                memory.Targets.Remove(_drone);
+                memory.Threats.Remove(_drone);
+                return true;
+            }
+
+            private void OnDestroy()
+            {
+                if (HasAnyEntityContents)
+                {
+                    foreach (var entity in entityContents)
+                    {
+                        var memory = GetMemory(entity);
+                        if (memory == null)
+                            continue;
+
+                        RemoveFromMemory(memory);
+                    }
+                }
+            }
+        }
+
+        private class NPCTargetComponent : FacepunchBehaviour
+        {
+            public static void AddToDrone(TargetableDrones plugin, Drone drone)
+            {
+                var component = drone.gameObject.AddComponent<NPCTargetComponent>();
+
+                var child = drone.gameObject.CreateChild();
+                child.layer = (int)Rust.Layer.Trigger;
+
+                // HACK: Prevent the drone's sweep test from using incorporating the child collider.
+                child.AddComponent<Rigidbody>().isKinematic = true;
+
+                var collider = child.AddComponent<SphereCollider>();
+                collider.isTrigger = true;
+                collider.radius = plugin._config.NPCTargetingSettings.Range;
+
+                component._trigger = NPCTargetTriggerComponent.AddToDrone(plugin, drone, child);
+            }
+
+            public static void RemoveFromDrone(Drone drone)
+            {
+                DestroyImmediate(drone.gameObject.GetComponent<NPCTargetComponent>());
+            }
+
+            private NPCTargetTriggerComponent _trigger;
+
+            private void OnDestroy()
+            {
+                if (_trigger != null)
+                {
+                    Destroy(_trigger.gameObject);
+                }
+            }
+        }
 
         private class TurretTargetComponent : EntityComponent<BaseEntity>
         {
@@ -440,7 +673,9 @@ namespace Oxide.Plugins
             private void OnDestroy()
             {
                 if (_child != null)
+                {
                     Destroy(_child);
+                }
             }
         }
 
@@ -495,6 +730,81 @@ namespace Oxide.Plugins
 
         #region Configuration
 
+        private class CaseInsensitiveDictionary<TValue> : Dictionary<string, TValue>
+        {
+            public CaseInsensitiveDictionary() : base(StringComparer.OrdinalIgnoreCase) {}
+
+            public CaseInsensitiveDictionary(IEnumerable<KeyValuePair<string, TValue>> collection)
+                : base(collection, StringComparer.OrdinalIgnoreCase) {}
+        }
+
+        [JsonObject(MemberSerialization.OptIn)]
+        private class NPCTargetingSettings
+        {
+            [JsonProperty("Range")]
+            public float Range = 60;
+
+            [JsonProperty("EnabledByNpcPrefab")]
+            private CaseInsensitiveDictionary<bool> EnabledByNpcPrefabName = new CaseInsensitiveDictionary<bool>();
+
+            private Dictionary<uint, bool> EnabledByNpcPrefabId = new Dictionary<uint, bool>();
+
+            public bool Enabled { get; private set; }
+
+            public bool IsAllowed(BaseEntity entity)
+            {
+                bool canTarget;
+                return EnabledByNpcPrefabId.TryGetValue(entity.prefabID, out canTarget) && canTarget;
+            }
+
+            public bool OnServerInitialized()
+            {
+                var changed = AddMissingNpcPrefabs();
+
+                foreach (var entry in EnabledByNpcPrefabName)
+                {
+                    var prefabPath = entry.Key;
+                    var humanNpc = GameManager.server.FindPrefab(prefabPath)?.GetComponent<HumanNpc>();
+                    if (humanNpc == null)
+                    {
+                        LogWarning($"Invalid HumanNPC prefab in config: {prefabPath}");
+                        continue;
+                    }
+
+                    EnabledByNpcPrefabId[humanNpc.prefabID] = entry.Value;
+                    Enabled = true;
+                }
+
+                return changed;
+            }
+
+            private bool AddMissingNpcPrefabs()
+            {
+                var changed = false;
+
+                foreach (var prefabPath in GameManifest.Current.entities)
+                {
+                    var humanNpc = GameManager.server.FindPrefab(prefabPath)?.GetComponent<HumanNpc>();
+                    if (humanNpc == null)
+                        continue;
+
+                    if (!EnabledByNpcPrefabName.ContainsKey(prefabPath))
+                    {
+                        EnabledByNpcPrefabName[prefabPath.ToLower()] = false;
+                        changed = true;
+                    }
+                }
+
+                if (changed)
+                {
+                    EnabledByNpcPrefabName = new CaseInsensitiveDictionary<bool>(EnabledByNpcPrefabName.OrderBy(entry => entry.Key));
+                }
+
+                return changed;
+            }
+        }
+
+        [JsonObject(MemberSerialization.OptIn)]
         private class SharingSettings
         {
             [JsonProperty("Team")]
@@ -510,6 +820,7 @@ namespace Oxide.Plugins
             public bool Allies = false;
         }
 
+        [JsonObject(MemberSerialization.OptIn)]
         private class Configuration : BaseConfiguration
         {
             [JsonProperty("EnableTurretTargeting")]
@@ -518,8 +829,16 @@ namespace Oxide.Plugins
             [JsonProperty("EnableSAMTargeting")]
             public bool EnableSAMTargeting = true;
 
+            [JsonProperty("NPCTargeting")]
+            public NPCTargetingSettings NPCTargetingSettings = new NPCTargetingSettings();
+
             [JsonProperty("DefaultSharingSettings")]
             public SharingSettings DefaultSharingSettings = new SharingSettings();
+
+            public bool OnServerInitialized()
+            {
+                return NPCTargetingSettings.OnServerInitialized();
+            }
         }
 
         private Configuration GetDefaultConfig() => new Configuration();
@@ -528,8 +847,11 @@ namespace Oxide.Plugins
 
         #region Configuration Helpers
 
+        [JsonObject(MemberSerialization.OptIn)]
         private class BaseConfiguration
         {
+            public bool UsingDefaults;
+
             public string ToJson() => JsonConvert.SerializeObject(this);
 
             public Dictionary<string, object> ToDictionary() => JsonHelper.Deserialize(ToJson()) as Dictionary<string, object>;
@@ -621,6 +943,7 @@ namespace Oxide.Plugins
                 LogError(e.Message);
                 LogWarning($"Configuration file {Name}.json is invalid; using defaults");
                 LoadDefaultConfig();
+                _config.UsingDefaults = true;
             }
         }
 
