@@ -117,7 +117,7 @@ namespace Oxide.Plugins
                 SAMTargetComponent.AddToDroneIfMissing(this, drone);
             }
 
-            if (_config.NPCTargetingSettings.Enabled && !IsDroneOwnerExempt(drone))
+            if (_config.NPCTargetingSettings.Enabled)
             {
                 NPCTargetComponent.AddToDrone(this, drone);
             }
@@ -343,12 +343,9 @@ namespace Oxide.Plugins
             }
         }
 
-        private bool IsDroneOwnerExempt(Drone drone)
+        private bool IsPlayerTargetExempt(ulong userId)
         {
-            if (drone.OwnerID == 0)
-                return false;
-
-            return permission.UserHasPermission(drone.OwnerID.ToString(), PermissionUntargetable);
+            return userId != 0 && permission.UserHasPermission(userId.ToString(), PermissionUntargetable);
         }
 
         private bool IsTargetable(Drone drone, bool isStaticSamSite = false)
@@ -356,7 +353,7 @@ namespace Oxide.Plugins
             if (drone.isGrounded)
                 return false;
 
-            if (IsDroneOwnerExempt(drone))
+            if (IsPlayerTargetExempt(GetDroneControllerOrOwnerId(drone)))
                 return false;
 
             if (isStaticSamSite)
@@ -527,6 +524,10 @@ namespace Oxide.Plugins
 
             private bool AddToMemory(SimpleAIMemory memory)
             {
+                if (_drone.ControllingViewerId.HasValue
+                    && _plugin.IsPlayerTargetExempt(_drone.ControllingViewerId.Value.SteamId))
+                    return false;
+
                 if (!memory.LOS.Add(_drone))
                     return false;
 
