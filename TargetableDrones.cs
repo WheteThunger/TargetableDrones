@@ -578,7 +578,7 @@ namespace Oxide.Plugins
 
                 var collider = child.AddComponent<SphereCollider>();
                 collider.isTrigger = true;
-                collider.radius = plugin._config.NPCTargetingSettings.Range;
+                collider.radius = plugin._config.NPCTargetingSettings.MaxRange;
 
                 component._trigger = NPCTargetTriggerComponent.AddToDrone(plugin, drone, child);
             }
@@ -731,8 +731,8 @@ namespace Oxide.Plugins
         [JsonObject(MemberSerialization.OptIn)]
         private class NPCTargetingSettings
         {
-            [JsonProperty("Range")]
-            public float Range = 60;
+            [JsonProperty("MaxRange")]
+            public float MaxRange = 45;
 
             [JsonProperty("EnabledByNpcPrefab")]
             private CaseInsensitiveDictionary<bool> EnabledByNpcPrefabName = new CaseInsensitiveDictionary<bool>();

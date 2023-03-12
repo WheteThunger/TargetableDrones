@@ -20,7 +20,7 @@ Default configuration:
   "EnableTurretTargeting": true,
   "EnableSAMTargeting": true,
   "NPCTargeting": {
-    "Range": 60.0,
+    "MaxRange": 45.0,
     "EnabledByNpcPrefab": {
       "assets/prefabs/npc/gingerbread/gingerbread_dungeon.prefab": false,
       "assets/prefabs/npc/gingerbread/gingerbread_meleedungeon.prefab": false,
@@ -59,7 +59,7 @@ Default configuration:
 - `EnableTurretTargeting` (`true` or `false`) -- While `true`, drones can be targeted by Auto Turrets.
 - `EnableSAMTargeting` (`true` or `false`) -- While `true`, drones can be targeted by SAM Sites.
 - `NPCTargeting`
-  - `Range` (Default: `60.0`) -- Determines how far away NPCs can target drones.
+  - `MaxRange` (Default: `45.0`) -- Determines the max range that NPCs can target drones. Note: NPCs cannot target drones farther than their weapon range, no matter how high you set this value.
   - `EnabledByNpcPrefab` -- Determines whether each type of NPC can target drones.
 - `DefaultSharingSettings` (each `true` or `false`) -- These settings determine whether a player's Auto Turrets or SAM Sites will target drones deployed by their teammates, friends, clanmates, or ally clanmates.
 
