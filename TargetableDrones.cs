@@ -13,7 +13,7 @@ using HumanNpc = global::HumanNPC;
 
 namespace Oxide.Plugins
 {
-    [Info("Targetable Drones", "WhiteThunder", "1.1.0")]
+    [Info("Targetable Drones", "WhiteThunder", "1.2.0")]
     [Description("Allows RC drones to be targeted by Auto Turrets and SAM Sites.")]
     internal class TargetableDrones : CovalencePlugin
     {
