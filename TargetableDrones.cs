@@ -805,6 +805,9 @@ namespace Oxide.Plugins
                     if (humanNpc == null)
                         continue;
 
+                    if (humanNpc.GetComponent<ScientistBrain>()?.HostileTargetsOnly ?? false)
+                        continue;
+
                     if (!EnabledByNpcPrefabName.ContainsKey(prefabPath))
                     {
                         EnabledByNpcPrefabName[prefabPath.ToLower()] = false;

@@ -25,7 +25,6 @@ Default configuration:
     "EnabledByNpcPrefab": {
       "assets/prefabs/npc/gingerbread/gingerbread_dungeon.prefab": false,
       "assets/prefabs/npc/gingerbread/gingerbread_meleedungeon.prefab": false,
-      "assets/rust.ai/agents/npcplayer/humannpc/banditguard/npc_bandit_guard.prefab": false,
       "assets/rust.ai/agents/npcplayer/humannpc/scientist/scientistnpc_cargo.prefab": false,
       "assets/rust.ai/agents/npcplayer/humannpc/scientist/scientistnpc_cargo_turret_any.prefab": false,
       "assets/rust.ai/agents/npcplayer/humannpc/scientist/scientistnpc_cargo_turret_lr300.prefab": false,
@@ -40,7 +39,6 @@ Default configuration:
       "assets/rust.ai/agents/npcplayer/humannpc/scientist/scientistnpc_junkpile_pistol.prefab": false,
       "assets/rust.ai/agents/npcplayer/humannpc/scientist/scientistnpc_oilrig.prefab": false,
       "assets/rust.ai/agents/npcplayer/humannpc/scientist/scientistnpc_patrol.prefab": false,
-      "assets/rust.ai/agents/npcplayer/humannpc/scientist/scientistnpc_peacekeeper.prefab": false,
       "assets/rust.ai/agents/npcplayer/humannpc/scientist/scientistnpc_roam.prefab": false,
       "assets/rust.ai/agents/npcplayer/humannpc/scientist/scientistnpc_roamtethered.prefab": false,
       "assets/rust.ai/agents/npcplayer/humannpc/tunneldweller/npc_tunneldweller.prefab": false,
