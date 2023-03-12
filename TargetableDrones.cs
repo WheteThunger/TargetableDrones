@@ -50,7 +50,6 @@ namespace Oxide.Plugins
             {
                 Unsubscribe(nameof(OnEntityEnter));
                 Unsubscribe(nameof(OnTurretTarget));
-                Unsubscribe(nameof(OnEntityTakeDamage));
                 Unsubscribe(nameof(OnDroneScaled));
             }
         }
@@ -72,6 +71,11 @@ namespace Oxide.Plugins
             }
 
             Subscribe(nameof(OnEntitySpawned));
+
+            if (!_config.EnableTurretTargeting && !_config.NPCTargetingSettings.DamageMultiplierEnabled)
+            {
+                Unsubscribe(nameof(OnEntityTakeDamage));
+            }
         }
 
         private void Unload()
@@ -254,38 +258,56 @@ namespace Oxide.Plugins
             return null;
         }
 
-        // Make drone turrets retaliate against other turrets.
-        private void OnEntityTakeDamage(Drone drone, HitInfo info)
+        private void OnEntityTakeDamage(Drone drone, HitInfo hitInfo)
         {
-            // Ignore if not attacked by a turret.
-            var turretInitiator = info?.Initiator as AutoTurret;
-            if (turretInitiator == null)
+            if (hitInfo == null)
                 return;
 
-            // Ignore if this drone does not have a turret since it can't retaliate.
-            var droneTurret = GetDroneTurret(drone);
-            if (droneTurret == null)
-                return;
-
-            // Ignore if the turret damaged its owner drone.
-            if (droneTurret == turretInitiator)
-                return;
-
-            // Ignore if the turret is not online or has an existing visible target.
-            if (!droneTurret.IsOnline()
-                || droneTurret.HasTarget() && droneTurret.targetVisible)
-                return;
-
-            var attackerDrone = GetParentDrone(turretInitiator);
-            if (attackerDrone != null)
+            // Multiply damage taken by NPCs.
+            var humanNpc = hitInfo.Initiator as HumanNpc;
+            if ((object)humanNpc != null)
             {
-                // If the attacker turret is on a drone, target that drone.
-                droneTurret.SetTarget(attackerDrone);
+                if (!_config.NPCTargetingSettings.DamageMultiplierEnabled
+                    || !_config.NPCTargetingSettings.IsAllowed(humanNpc))
+                    return;
+
+                hitInfo.damageTypes.ScaleAll(_config.NPCTargetingSettings.DamageMultiplier);
                 return;
             }
 
-            // Shoot back at the turret.
-            droneTurret.SetTarget(turretInitiator);
+            // Make drone turrets retaliate against other turrets.
+            var turret = hitInfo.Initiator as AutoTurret;
+            if ((object)turret != null)
+            {
+                if (turret == null || turret.IsDestroyed)
+                    return;
+
+                // Ignore if this drone does not have a turret since it can't retaliate.
+                var droneTurret = GetDroneTurret(drone);
+                if (droneTurret == null)
+                    return;
+
+                // Ignore if the turret damaged its owner drone.
+                if (droneTurret == turret)
+                    return;
+
+                // Ignore if the turret is not online or has an existing visible target.
+                if (!droneTurret.IsOnline()
+                    || droneTurret.HasTarget() && droneTurret.targetVisible)
+                    return;
+
+                var attackerDrone = GetParentDrone(turret);
+                if (attackerDrone != null)
+                {
+                    // If the attacker turret is on a drone, target that drone.
+                    droneTurret.SetTarget(attackerDrone);
+                    return;
+                }
+
+                // Shoot back at the turret.
+                droneTurret.SetTarget(turret);
+                return;
+            }
         }
 
         private void OnDroneScaled(Drone drone, BaseEntity rootEntity, float scale, float previousScale)
@@ -734,12 +756,17 @@ namespace Oxide.Plugins
             [JsonProperty("MaxRange")]
             public float MaxRange = 45;
 
+            [JsonProperty("DamageMultiplier")]
+            public float DamageMultiplier = 4f;
+
             [JsonProperty("EnabledByNpcPrefab")]
             private CaseInsensitiveDictionary<bool> EnabledByNpcPrefabName = new CaseInsensitiveDictionary<bool>();
 
             private Dictionary<uint, bool> EnabledByNpcPrefabId = new Dictionary<uint, bool>();
 
             public bool Enabled { get; private set; }
+
+            public bool DamageMultiplierEnabled => Enabled && DamageMultiplier != 1;
 
             public bool IsAllowed(BaseEntity entity)
             {

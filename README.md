@@ -21,6 +21,7 @@ Default configuration:
   "EnableSAMTargeting": true,
   "NPCTargeting": {
     "MaxRange": 45.0,
+    "DamageMultiplier": 5.0,
     "EnabledByNpcPrefab": {
       "assets/prefabs/npc/gingerbread/gingerbread_dungeon.prefab": false,
       "assets/prefabs/npc/gingerbread/gingerbread_meleedungeon.prefab": false,
@@ -60,7 +61,8 @@ Default configuration:
 - `EnableSAMTargeting` (`true` or `false`) -- While `true`, drones can be targeted by SAM Sites.
 - `NPCTargeting`
   - `MaxRange` (Default: `45.0`) -- Determines the max range that NPCs can target drones. Note: NPCs cannot target drones farther than their weapon range, no matter how high you set this value.
-  - `EnabledByNpcPrefab` -- Determines whether each type of NPC can target drones.
+  - `DamageMultiplier` (Default: `5.0`) -- Determines how much to multiply NPC damage by. This is useful for balance because NPCs deal less damage than players by default.
+  - `EnabledByNpcPrefab` -- Determines whether each type of NPC can target drones. This list will automatically add new NPC prefabs when they are detected after Rust updates.
 - `DefaultSharingSettings` (each `true` or `false`) -- These settings determine whether a player's Auto Turrets or SAM Sites will target drones deployed by their teammates, friends, clanmates, or ally clanmates.
 
 ## Recommended compatible plugins
