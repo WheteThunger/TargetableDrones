@@ -2,13 +2,14 @@
 
 - Allows SAM Sites to target RC drones
 - Allows player Auto Turrets to target RC drones
+- Allows NPCs to target RC drones
 - Allows sharing turret/SAM authorization with team, clan and friends to avoid targeting their drones
 
-**Highly recommended**: [Drone Settings](https://umod.org/plugins/drone-settings) -- Allows configuring toughness of drones. Without this, Auto Turrets and SAM Sites may not be able to destroy drones.
+**Highly recommended**: [Drone Settings](https://umod.org/plugins/drone-settings) -- Allows configuring toughness of drones. Without this, Auto Turrets, SAM Sites and NPCs may not be able to destroy drones.
 
 ## Permissions
 
-- `targetabledrones.untargetable` -- Drones deployed by players with this permission cannot be targeted by any Auto Turrets or SAM Sites.
+- `targetabledrones.untargetable` -- Drones controlled by players with this permission cannot be targeted by any Auto Turrets, SAM Sites or NPCs.
 
 ## Configuration
 
