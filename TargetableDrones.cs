@@ -13,7 +13,7 @@ using HumanNpc = global::HumanNPC;
 
 namespace Oxide.Plugins
 {
-    [Info("Targetable Drones", "WhiteThunder", "1.2.0")]
+    [Info("Targetable Drones", "WhiteThunder", "1.2.1")]
     [Description("Allows RC drones to be targeted by Auto Turrets and SAM Sites.")]
     internal class TargetableDrones : CovalencePlugin
     {
@@ -381,7 +381,7 @@ namespace Oxide.Plugins
             if (isStaticSamSite)
                 return true;
 
-            return !BaseVehicle.InSafeZone(drone.triggers, drone.transform.position);
+            return !drone.InSafeZone();
         }
 
         private BaseEntity GetRootEntity(Drone drone)
