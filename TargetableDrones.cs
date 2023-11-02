@@ -42,12 +42,14 @@ namespace Oxide.Plugins
 
             if (!_config.EnableSAMTargeting)
             {
+                LogWarning("Disabling Sam Site targeting feature due to config");
                 Unsubscribe(nameof(OnSamSiteTargetScan));
                 Unsubscribe(nameof(OnSamSiteTarget));
             }
 
             if (!_config.EnableTurretTargeting)
             {
+                LogWarning("Disabling Auto Turret targeting feature due to config");
                 Unsubscribe(nameof(OnEntityEnter));
                 Unsubscribe(nameof(OnTurretTarget));
                 Unsubscribe(nameof(OnDroneScaled));
@@ -214,6 +216,8 @@ namespace Oxide.Plugins
 
         private void OnSamSiteTargetScan(SamSite samSite, List<ISamSiteTarget> targetList)
         {
+            LogWarning($"OnSamSiteTargetScan : There are {SAMTargetComponent.DroneComponents.Count} targetable drones.");
+
             if (SAMTargetComponent.DroneComponents.Count == 0)
                 return;
 
@@ -238,7 +242,10 @@ namespace Oxide.Plugins
         private object OnSamSiteTarget(SamSite samSite, SAMTargetComponent droneComponent)
         {
             if (samSite.staticRespawn || samSite.OwnerID == 0)
+            {
+                LogWarning("OnSamSiteTarget : Allowing targeting of drone because Sam Site is static or unowned.");
                 return null;
+            }
 
             var drone = droneComponent.Drone;
             if (drone == null || drone.IsDestroyed)
@@ -246,15 +253,22 @@ namespace Oxide.Plugins
 
             var droneOwnerId = GetDroneControllerOrOwnerId(drone);
             if (droneOwnerId == 0)
+            {
+                LogWarning("OnSamSiteTarget : Allowing targeting of drone because it has no owner and no controller.");
                 return null;
+            }
 
             if (samSite.OwnerID == droneOwnerId
                 || _config.DefaultSharingSettings.Team && SameTeam(samSite.OwnerID, droneOwnerId)
                 || _config.DefaultSharingSettings.Friends && HasFriend(samSite.OwnerID, droneOwnerId)
                 || _config.DefaultSharingSettings.Clan && SameClan(samSite.OwnerID, droneOwnerId)
                 || _config.DefaultSharingSettings.Allies && AreAllies(samSite.OwnerID, droneOwnerId))
+            {
+                LogWarning("OnSamSiteTarget : Disallowing targeting of drone because of same owner/team/friends/clan/allies as Sam Site owner.");
                 return False;
+            }
 
+            LogWarning("OnSamSiteTarget : Allowing targeting of drone because no conditions prevented it.");
             return null;
         }
 
@@ -373,15 +387,29 @@ namespace Oxide.Plugins
         private bool IsTargetable(Drone drone, bool isStaticSamSite = false)
         {
             if (drone.isGrounded)
+            {
+                LogWarning("IsTargetable: Drone is not targetable because it is grounded");
                 return false;
+            }
 
             if (IsPlayerTargetExempt(GetDroneControllerOrOwnerId(drone)))
+            {
+                LogWarning("IsTargetable: Drone is not targetable because controller or owner is exempt.");
                 return false;
+            }
 
             if (isStaticSamSite)
+            {
+                LogWarning("IsTargetable: Drone is targetable because Sam Site is static.");
                 return true;
+            }
 
-            return !drone.InSafeZone();
+            var isTargetable = !drone.InSafeZone();
+            LogWarning(isTargetable
+                ? "IsTargetable: Drone is targetable because it's not inside a safe zones."
+                : "IsTargetable: Drone is not targetable because it's inside a safe zone.");
+
+            return isTargetable;
         }
 
         private BaseEntity GetRootEntity(Drone drone)
@@ -699,6 +727,7 @@ namespace Oxide.Plugins
             {
                 var component = drone.GetOrAddComponent<SAMTargetComponent>();
                 component._plugin = plugin;
+                LogWarning("Attached Sam Site targeting component to drone");
             }
 
             public static void RemoveFromDrone(Drone drone)
