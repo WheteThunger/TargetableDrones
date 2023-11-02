@@ -216,7 +216,7 @@ namespace Oxide.Plugins
 
         private void OnSamSiteTargetScan(SamSite samSite, List<ISamSiteTarget> targetList)
         {
-            LogWarning($"OnSamSiteTargetScan : There are {SAMTargetComponent.DroneComponents.Count} targetable drones.");
+            LogWarning($"OnSamSiteTargetScan [{samSite.net.ID.Value}] : {SAMTargetComponent.DroneComponents.Count} targetable drones on the map");
 
             if (SAMTargetComponent.DroneComponents.Count == 0)
                 return;
@@ -229,21 +229,26 @@ namespace Oxide.Plugins
                 SqrScanRadius = Mathf.Pow(SamSite.targetTypeVehicle.scanRadius, 2);
             }
 
+            var droneCountInRange = 0;
+
             foreach (var droneComponent in SAMTargetComponent.DroneComponents)
             {
                 // Distance checking is way more efficient than collider checking, even with hundreds of drones.
                 if ((samSitePosition - droneComponent.Position).sqrMagnitude <= SqrScanRadius.Value)
                 {
                     targetList.Add(droneComponent);
+                    droneCountInRange++;
                 }
             }
+
+            LogWarning($"OnSamSiteTargetScan [{samSite.net.ID.Value}] : {droneCountInRange} potential drone target(s) in range");
         }
 
         private object OnSamSiteTarget(SamSite samSite, SAMTargetComponent droneComponent)
         {
             if (samSite.staticRespawn || samSite.OwnerID == 0)
             {
-                LogWarning("OnSamSiteTarget : Allowing targeting of drone because Sam Site is static or unowned.");
+                LogWarning($"OnSamSiteTarget [{samSite.net.ID.Value}] : Allowing targeting of drone because Sam Site is static or unowned.");
                 return null;
             }
 
@@ -254,7 +259,7 @@ namespace Oxide.Plugins
             var droneOwnerId = GetDroneControllerOrOwnerId(drone);
             if (droneOwnerId == 0)
             {
-                LogWarning("OnSamSiteTarget : Allowing targeting of drone because it has no owner and no controller.");
+                LogWarning($"OnSamSiteTarget [{samSite.net.ID.Value}] : Allowing targeting of drone because it has no owner and no controller.");
                 return null;
             }
 
@@ -264,11 +269,11 @@ namespace Oxide.Plugins
                 || _config.DefaultSharingSettings.Clan && SameClan(samSite.OwnerID, droneOwnerId)
                 || _config.DefaultSharingSettings.Allies && AreAllies(samSite.OwnerID, droneOwnerId))
             {
-                LogWarning("OnSamSiteTarget : Disallowing targeting of drone because of same owner/team/friends/clan/allies as Sam Site owner.");
+                LogWarning($"OnSamSiteTarget [{samSite.net.ID.Value}] : Disallowing targeting of drone because of same owner/team/friends/clan/allies as Sam Site owner.");
                 return False;
             }
 
-            LogWarning("OnSamSiteTarget : Allowing targeting of drone because no conditions prevented it.");
+            LogWarning($"OnSamSiteTarget [{samSite.net.ID.Value}] : Allowing targeting of drone because no conditions prevented it.");
             return null;
         }
 
@@ -388,26 +393,26 @@ namespace Oxide.Plugins
         {
             if (drone.isGrounded)
             {
-                LogWarning("IsTargetable: Drone is not targetable because it is grounded");
+                LogWarning($"IsTargetable [{drone.net.ID.Value}] : Drone is not targetable because it is grounded");
                 return false;
             }
 
             if (IsPlayerTargetExempt(GetDroneControllerOrOwnerId(drone)))
             {
-                LogWarning("IsTargetable: Drone is not targetable because controller or owner is exempt.");
+                LogWarning("IsTargetable [{drone.net.ID.Value}] : Drone is not targetable because controller or owner is exempt.");
                 return false;
             }
 
             if (isStaticSamSite)
             {
-                LogWarning("IsTargetable: Drone is targetable because Sam Site is static.");
+                LogWarning($"IsTargetable [{drone.net.ID.Value}] : Drone is targetable because Sam Site is static.");
                 return true;
             }
 
             var isTargetable = !drone.InSafeZone();
             LogWarning(isTargetable
-                ? "IsTargetable: Drone is targetable because it's not inside a safe zones."
-                : "IsTargetable: Drone is not targetable because it's inside a safe zone.");
+                ? $"IsTargetable [{drone.net.ID.Value}] : Drone is targetable because it's not inside a safe zones."
+                : $"IsTargetable [{drone.net.ID.Value}] : Drone is not targetable because it's inside a safe zone.");
 
             return isTargetable;
         }
