@@ -40,7 +40,7 @@ namespace Oxide.Plugins
 
             Unsubscribe(nameof(OnEntitySpawned));
 
-            if (!_config.EnableSAMTargeting)
+            if (!_config.EnableSamTargeting)
             {
                 Unsubscribe(nameof(OnSamSiteTargetScan));
                 Unsubscribe(nameof(OnSamSiteTarget));
@@ -91,7 +91,7 @@ namespace Oxide.Plugins
                     TurretTargetComponent.RemoveFromDrone(this, drone);
                 }
 
-                if (_config.EnableSAMTargeting)
+                if (_config.EnableSamTargeting)
                 {
                     SAMTargetComponent.RemoveFromDrone(drone);
                 }
@@ -116,7 +116,7 @@ namespace Oxide.Plugins
                 TurretTargetComponent.AddToDroneIfMissing(this, drone);
             }
 
-            if (_config.EnableSAMTargeting)
+            if (_config.EnableSamTargeting)
             {
                 SAMTargetComponent.AddToDroneIfMissing(this, drone);
             }
@@ -183,7 +183,7 @@ namespace Oxide.Plugins
             if (turret is NPCAutoTurret)
                 return False;
 
-            if (!IsTargetable(drone))
+            if (!IsTargetableByTurret(drone))
                 return False;
 
             // Don't allow a drone turret to target its parent drone.
@@ -370,18 +370,29 @@ namespace Oxide.Plugins
             return userId != 0 && permission.UserHasPermission(userId.ToString(), PermissionUntargetable);
         }
 
-        private bool IsTargetable(Drone drone, bool isStaticSamSite = false)
+        private bool IsTargetExempt(Drone drone)
         {
-            if (drone.isGrounded)
-                return false;
+            return drone.isGrounded || IsPlayerTargetExempt(GetDroneControllerOrOwnerId(drone));
+        }
 
-            if (IsPlayerTargetExempt(GetDroneControllerOrOwnerId(drone)))
+        private bool IsTargetableByTurret(Drone drone)
+        {
+            if (IsTargetExempt(drone))
                 return false;
-
-            if (isStaticSamSite)
-                return true;
 
             return !drone.InSafeZone();
+        }
+
+        private bool IsTargetableBySamSite(Drone drone, bool isStaticSamSite)
+        {
+            if (IsTargetExempt(drone))
+                return false;
+
+            var isTargetable = isStaticSamSite
+                ? _config.EnableStaticSAMTargeting
+                : _config.EnablePlayerSAMTargeting;
+
+            return isTargetable && !drone.InSafeZone();
         }
 
         private BaseEntity GetRootEntity(Drone drone)
@@ -727,7 +738,7 @@ namespace Oxide.Plugins
 
             public bool isClient => false;
 
-            public bool IsValidSAMTarget(bool isStaticSamSite) => _plugin.IsTargetable(Drone, isStaticSamSite);
+            public bool IsValidSAMTarget(bool isStaticSamSite) => _plugin.IsTargetableBySamSite(Drone, isStaticSamSite);
 
             public Vector3 CenterPoint() => Drone.CenterPoint();
 
@@ -846,14 +857,30 @@ namespace Oxide.Plugins
             [JsonProperty("EnableTurretTargeting")]
             public bool EnableTurretTargeting = true;
 
+            [JsonProperty("EnablePlayerSAMTargeting")]
+            public bool EnablePlayerSAMTargeting = true;
+
+            [JsonProperty("EnableStaticSAMTargeting")]
+            public bool EnableStaticSAMTargeting = true;
+
             [JsonProperty("EnableSAMTargeting")]
-            public bool EnableSAMTargeting = true;
+            public bool DeprecatedEnableSAMTargeting
+            {
+                set
+                {
+                    EnablePlayerSAMTargeting = value;
+                    EnableStaticSAMTargeting = value;
+                }
+            }
 
             [JsonProperty("NPCTargeting")]
             public NPCTargetingSettings NPCTargetingSettings = new NPCTargetingSettings();
 
             [JsonProperty("DefaultSharingSettings")]
             public SharingSettings DefaultSharingSettings = new SharingSettings();
+
+            [JsonIgnore]
+            public bool EnableSamTargeting => EnablePlayerSAMTargeting || EnableStaticSAMTargeting;
 
             public bool OnServerInitialized()
             {

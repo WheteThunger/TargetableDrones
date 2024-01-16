@@ -18,7 +18,8 @@ Default configuration:
 ```json
 {
   "EnableTurretTargeting": true,
-  "EnableSAMTargeting": true,
+  "EnablePlayerSAMTargeting": true,
+  "EnableStaticSAMTargeting": true,
   "NPCTargeting": {
     "MaxRange": 45.0,
     "DamageMultiplier": 5.0,
@@ -56,7 +57,8 @@ Default configuration:
 ```
 
 - `EnableTurretTargeting` (`true` or `false`) -- While `true`, drones can be targeted by Auto Turrets.
-- `EnableSAMTargeting` (`true` or `false`) -- While `true`, drones can be targeted by SAM Sites.
+- `EnablePlayerSAMTargeting` (`true` or `false`) -- While `true`, drones can be targeted by player SAM Sites.
+- `EnableStaticSAMTargeting` (`true` or `false`) -- While `true`, drones can be targeted by static SAM Sites (e.g., by monument Sam Sites).
 - `NPCTargeting`
   - `MaxRange` (Default: `45.0`) -- Determines the max range that NPCs can target drones. Note: NPCs cannot target drones farther than their weapon range, no matter how high you set this value.
   - `DamageMultiplier` (Default: `5.0`) -- Determines how much to multiply NPC damage by. This is useful for balance because NPCs deal less damage than players by default.
