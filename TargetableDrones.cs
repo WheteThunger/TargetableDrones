@@ -13,14 +13,14 @@ using HumanNpc = global::HumanNPC;
 
 namespace Oxide.Plugins
 {
-    [Info("Targetable Drones", "WhiteThunder", "1.2.2")]
+    [Info("Targetable Drones", "WhiteThunder", "1.2.3")]
     [Description("Allows RC drones to be targeted by Auto Turrets and SAM Sites.")]
     internal class TargetableDrones : CovalencePlugin
     {
         #region Fields
 
         [PluginReference]
-        private readonly Plugin Clans, Friends, DroneScaleManager;
+        private readonly Plugin Clans, Friends, DroneScaleManager, IQGuardianDrone;
 
         private const string PermissionUntargetable = "targetabledrones.untargetable";
 
@@ -365,6 +365,11 @@ namespace Oxide.Plugins
             }
         }
 
+        private bool IsTargetableIQGuardianDrone(Drone drone)
+        {
+            return IQGuardianDrone?.Call("IsValidDrone", drone) is true;
+        }
+
         private bool IsPlayerTargetExempt(ulong userId)
         {
             return userId != 0 && permission.UserHasPermission(userId.ToString(), PermissionUntargetable);
@@ -534,7 +539,7 @@ namespace Oxide.Plugins
 
             private bool IsTargetableBy(HumanNpc humanNpc)
             {
-                if (!_drone.IsBeingControlled)
+                if (!_drone.IsBeingControlled && !_plugin.IsTargetableIQGuardianDrone(_drone))
                     return false;
 
                 var eyesPosition = humanNpc.isMounted
