@@ -448,7 +448,6 @@ namespace Oxide.Plugins
 
             private TargetableDrones _plugin;
             private Drone _drone;
-            private List<BaseEntity> _contentsToRemove;
             private Action _checkTriggerContents;
 
             private NPCTargetTriggerComponent()
@@ -470,25 +469,17 @@ namespace Oxide.Plugins
                     if (humanNpc == null)
                         continue;
 
-                    var memory = GetMemory(entity);
+                    var memory = GetMemory(entity, out var senses);
                     if (memory == null)
                         continue;
 
                     if (IsTargetableBy(humanNpc))
                     {
-                        AddToMemory(memory);
+                        AddToMemory(memory, senses);
                     }
                     else
                     {
                         RemoveFromMemory(memory);
-                    }
-                }
-
-                if (_contentsToRemove?.Count > 0)
-                {
-                    foreach (var entity in _contentsToRemove)
-                    {
-                        entityContents.Remove(entity);
                     }
                 }
             }
@@ -532,9 +523,16 @@ namespace Oxide.Plugins
                 }
             }
 
+            private SimpleAIMemory GetMemory(BaseEntity entity, out AIBrainSenses senses)
+            {
+                var brain = (entity as HumanNpc)?.Brain;
+                senses = brain?.Senses;
+                return senses?.Memory;
+            }
+
             private SimpleAIMemory GetMemory(BaseEntity entity)
             {
-                return (entity as HumanNpc)?.Brain?.Senses?.Memory;
+                return GetMemory(entity, out _);
             }
 
             private bool IsTargetableBy(HumanNpc humanNpc)
@@ -560,7 +558,7 @@ namespace Oxide.Plugins
                 return humanNpc.IsVisibleSpecificLayers(_drone.CenterPoint(), eyesPosition, layerMask);
             }
 
-            private bool AddToMemory(SimpleAIMemory memory)
+            private bool AddToMemory(SimpleAIMemory memory, AIBrainSenses senses)
             {
                 if (_drone.ControllingViewerId.HasValue
                     && _plugin.IsPlayerTargetExempt(_drone.ControllingViewerId.Value.SteamId))
@@ -568,6 +566,15 @@ namespace Oxide.Plugins
 
                 if (!memory.LOS.Add(_drone))
                     return false;
+
+                senses.LastThreatTimestamp = Time.realtimeSinceStartup;
+
+                memory.All.Add(new SimpleAIMemory.SeenInfo
+                {
+                    Entity = _drone,
+                    Position = _drone.transform.position,
+                    Timestamp = Time.realtimeSinceStartup,
+                });
 
                 memory.Players.Add(_drone);
                 memory.Targets.Add(_drone);
@@ -579,6 +586,16 @@ namespace Oxide.Plugins
             {
                 if (!memory.LOS.Remove(_drone))
                     return false;
+
+                for (var i = 0; i < memory.All.Count; i++)
+                {
+                    var seenInfo = memory.All[i];
+                    if (seenInfo.Entity == _drone)
+                    {
+                        memory.All.RemoveAt(i);
+                        break;
+                    }
+                }
 
                 memory.Players.Remove(_drone);
                 memory.Targets.Remove(_drone);
