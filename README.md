@@ -85,6 +85,6 @@ Drone attachments:
 
 ## Developer Hooks
 
-You can use standard hooks to prevent Auto Turrets and SAM Sites from targeting drones under specific circumstances.
+You can use standard hooks to prevent Auto Turrets and SAM Sites from targeting drones under specific circumstances. Return `false` to block targeting.
 - `object OnTurretTarget(AutoTurret turret, Drone drone)`
 - `object OnSamSiteTarget(SamSite samSite, Drone drone)`

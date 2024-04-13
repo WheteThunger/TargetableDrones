@@ -176,37 +176,10 @@ namespace Oxide.Plugins
 
         private object OnTurretTarget(AutoTurret turret, Drone drone)
         {
-            if (turret == null || drone == null)
+            if (drone == null || drone.IsDestroyed)
                 return null;
 
-            // Drones are not inherently hostile.
-            if (turret is NPCAutoTurret)
-                return False;
-
-            if (!IsTargetableByTurret(drone))
-                return False;
-
-            // Don't allow a drone turret to target its parent drone.
-            if (GetParentDrone(turret) == drone)
-                return False;
-
-            var droneControllerOrOwnerId = GetDroneControllerOrOwnerId(drone);
-            if (droneControllerOrOwnerId == 0)
-                return null;
-
-            // Direct authorization trumps anything else.
-            if (turret.IsAuthed(droneControllerOrOwnerId))
-                return False;
-
-            // In case the owner lost authorization, don't share with team/friends/clan.
-            if (turret.OwnerID == 0 || !turret.IsAuthed(turret.OwnerID))
-                return null;
-
-            if (turret.OwnerID == droneControllerOrOwnerId
-                || _config.DefaultSharingSettings.Team && SameTeam(turret.OwnerID, droneControllerOrOwnerId)
-                || _config.DefaultSharingSettings.Friends && HasFriend(turret.OwnerID, droneControllerOrOwnerId)
-                || _config.DefaultSharingSettings.Clan && SameClan(turret.OwnerID, droneControllerOrOwnerId)
-                || _config.DefaultSharingSettings.Allies && AreAllies(turret.OwnerID, droneControllerOrOwnerId))
+            if (!ShouldTurretTargetDrone(turret, drone))
                 return False;
 
             return null;
@@ -237,22 +210,12 @@ namespace Oxide.Plugins
 
         private object OnSamSiteTarget(SamSite samSite, SAMTargetComponent droneComponent)
         {
-            if (samSite.staticRespawn || samSite.OwnerID == 0)
-                return null;
-
             var drone = droneComponent.Drone;
             if (drone == null || drone.IsDestroyed)
                 return null;
 
-            var droneOwnerId = GetDroneControllerOrOwnerId(drone);
-            if (droneOwnerId == 0)
-                return null;
-
-            if (samSite.OwnerID == droneOwnerId
-                || _config.DefaultSharingSettings.Team && SameTeam(samSite.OwnerID, droneOwnerId)
-                || _config.DefaultSharingSettings.Friends && HasFriend(samSite.OwnerID, droneOwnerId)
-                || _config.DefaultSharingSettings.Clan && SameClan(samSite.OwnerID, droneOwnerId)
-                || _config.DefaultSharingSettings.Allies && AreAllies(samSite.OwnerID, droneOwnerId))
+            if (!ShouldSamSiteTargetDrone(samSite, drone)
+                || ExposedHooks.OnSamSiteTarget(samSite, drone) is false)
                 return False;
 
             return null;
@@ -320,6 +283,18 @@ namespace Oxide.Plugins
 
         #endregion
 
+        #region Exposed Hooks
+
+        private static class ExposedHooks
+        {
+            public static object OnSamSiteTarget(SamSite samSite, Drone drone)
+            {
+                return Interface.CallHook("OnSamSiteTarget", samSite, drone);
+            }
+        }
+
+        #endregion
+
         #region Helper Methods
 
         public static void LogInfo(string message) => Interface.Oxide.LogInfo($"[Targetable Drones] {message}");
@@ -370,6 +345,12 @@ namespace Oxide.Plugins
             return IQGuardianDrone?.Call("IsValidDrone", drone) is true;
         }
 
+        private bool IsDroneBeingControlled(Drone drone)
+        {
+            // Valid IQGuardian Drones are considered to be controlled.
+            return !drone.IsBeingControlled && !IsTargetableIQGuardianDrone(drone);
+        }
+
         private bool IsPlayerTargetExempt(ulong userId)
         {
             return userId != 0 && permission.UserHasPermission(userId.ToString(), PermissionUntargetable);
@@ -377,27 +358,7 @@ namespace Oxide.Plugins
 
         private bool IsTargetExempt(Drone drone)
         {
-            return drone.isGrounded || IsPlayerTargetExempt(GetDroneControllerOrOwnerId(drone));
-        }
-
-        private bool IsTargetableByTurret(Drone drone)
-        {
-            if (IsTargetExempt(drone))
-                return false;
-
-            return !drone.InSafeZone();
-        }
-
-        private bool IsTargetableBySamSite(Drone drone, bool isStaticSamSite)
-        {
-            if (IsTargetExempt(drone))
-                return false;
-
-            var isTargetable = isStaticSamSite
-                ? _config.EnableStaticSAMTargeting
-                : _config.EnablePlayerSAMTargeting;
-
-            return isTargetable && !drone.InSafeZone();
+            return drone.isGrounded || drone.InSafeZone() || IsPlayerTargetExempt(GetDroneControllerOrOwnerId(drone));
         }
 
         private BaseEntity GetRootEntity(Drone drone)
@@ -421,6 +382,62 @@ namespace Oxide.Plugins
         {
             var clanResult = Clans?.Call("IsAllyPlayer", userId.ToString(), otherUserId.ToString());
             return clanResult is bool && (bool)clanResult;
+        }
+
+        private bool ShouldTurretTargetDrone(AutoTurret turret, Drone drone)
+        {
+            // Drones are not inherently hostile.
+            // TODO: Revisit this for player-deployed sentry turrets
+            if (turret is NPCAutoTurret)
+                return false;
+
+            if (IsTargetExempt(drone))
+                return false;
+
+            // Don't allow a drone turret to target its parent drone.
+            if (GetParentDrone(turret) == drone)
+                return false;
+
+            // Skip auth/team/friends/clan logic for drones that have no apparent controller/owner (likely NPC drones).
+            var droneControllerOrOwnerId = GetDroneControllerOrOwnerId(drone);
+            if (droneControllerOrOwnerId == 0)
+                return true;
+
+            // Direct authorization trumps anything else.
+            if (turret.IsAuthed(droneControllerOrOwnerId))
+                return false;
+
+            // In case the owner lost authorization, don't share with team/friends/clan.
+            if (turret.OwnerID == 0 || !turret.IsAuthed(turret.OwnerID))
+                return true;
+
+            if (turret.OwnerID == droneControllerOrOwnerId
+                || _config.DefaultSharingSettings.Team && SameTeam(turret.OwnerID, droneControllerOrOwnerId)
+                || _config.DefaultSharingSettings.Friends && HasFriend(turret.OwnerID, droneControllerOrOwnerId)
+                || _config.DefaultSharingSettings.Clan && SameClan(turret.OwnerID, droneControllerOrOwnerId)
+                || _config.DefaultSharingSettings.Allies && AreAllies(turret.OwnerID, droneControllerOrOwnerId))
+                return false;
+
+            return true;
+        }
+
+        private bool ShouldSamSiteTargetDrone(SamSite samSite, Drone drone)
+        {
+            if (samSite.staticRespawn || samSite.OwnerID == 0)
+                return true;
+
+            var droneOwnerId = GetDroneControllerOrOwnerId(drone);
+            if (droneOwnerId == 0)
+                return true;
+
+            if (samSite.OwnerID == droneOwnerId
+                || _config.DefaultSharingSettings.Team && SameTeam(samSite.OwnerID, droneOwnerId)
+                || _config.DefaultSharingSettings.Friends && HasFriend(samSite.OwnerID, droneOwnerId)
+                || _config.DefaultSharingSettings.Clan && SameClan(samSite.OwnerID, droneOwnerId)
+                || _config.DefaultSharingSettings.Allies && AreAllies(samSite.OwnerID, droneOwnerId))
+                return false;
+
+            return true;
         }
 
         #endregion
@@ -537,7 +554,7 @@ namespace Oxide.Plugins
 
             private bool IsTargetableBy(HumanNpc humanNpc)
             {
-                if (!_drone.IsBeingControlled && !_plugin.IsTargetableIQGuardianDrone(_drone))
+                if (!_plugin.IsDroneBeingControlled(_drone))
                     return false;
 
                 var eyesPosition = humanNpc.isMounted
@@ -760,7 +777,15 @@ namespace Oxide.Plugins
 
             public bool isClient => false;
 
-            public bool IsValidSAMTarget(bool isStaticSamSite) => _plugin.IsTargetableBySamSite(Drone, isStaticSamSite);
+            public bool IsValidSAMTarget(bool isStaticSamSite)
+            {
+                if (_plugin.IsTargetExempt(Drone))
+                    return false;
+
+                return isStaticSamSite
+                    ? _plugin._config.EnableStaticSAMTargeting
+                    : _plugin._config.EnablePlayerSAMTargeting;
+            }
 
             public Vector3 CenterPoint() => Drone.CenterPoint();
 
