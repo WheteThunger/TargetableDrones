@@ -24,6 +24,8 @@ namespace Oxide.Plugins
 
         private const string PermissionUntargetable = "targetabledrones.untargetable";
 
+        private const BaseEntity.Flags UntargetableFlag = BaseEntity.Flags.Reserved10;
+
         private Configuration _config;
 
         private readonly object False = false;
@@ -64,7 +66,7 @@ namespace Oxide.Plugins
             foreach (var entity in BaseNetworkable.serverEntities)
             {
                 var drone = entity as Drone;
-                if (drone == null || !IsDroneEligible(drone))
+                if (drone == null)
                     continue;
 
                 OnEntitySpawned(drone);
@@ -303,7 +305,7 @@ namespace Oxide.Plugins
 
         private static bool IsDroneEligible(Drone drone)
         {
-            return drone is not DeliveryDrone;
+            return drone is not DeliveryDrone && !drone.HasFlag(UntargetableFlag);
         }
 
         private static Drone GetParentDrone(BaseEntity entity)
