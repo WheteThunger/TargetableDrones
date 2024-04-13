@@ -191,12 +191,7 @@ namespace Oxide.Plugins
                 return;
 
             var samSitePosition = samSite.transform.position;
-
-            if (SqrScanRadius == null)
-            {
-                // SamSite.targetTypeVehicle is not set until the first Sam Site spawns.
-                SqrScanRadius = Mathf.Pow(SamSite.targetTypeVehicle.scanRadius, 2);
-            }
+            SqrScanRadius ??= Mathf.Pow(targetTypeVehicle.scanRadius, 2);
 
             foreach (var droneComponent in SAMTargetComponent.DroneComponents)
             {
@@ -308,7 +303,7 @@ namespace Oxide.Plugins
 
         private static bool IsDroneEligible(Drone drone)
         {
-            return !(drone is DeliveryDrone);
+            return drone is not DeliveryDrone;
         }
 
         private static Drone GetParentDrone(BaseEntity entity)
@@ -329,7 +324,7 @@ namespace Oxide.Plugins
 
             foreach (var trigger in entity.triggers.ToArray())
             {
-                if (!(trigger is TargetTrigger))
+                if (trigger is not TargetTrigger)
                     continue;
 
                 var autoTurret = trigger.gameObject.ToBaseEntity() as AutoTurret;
@@ -368,20 +363,17 @@ namespace Oxide.Plugins
 
         private bool HasFriend(ulong userId, ulong otherUserId)
         {
-            var friendsResult = Friends?.Call("HasFriend", userId, otherUserId);
-            return friendsResult is bool && (bool)friendsResult;
+            return Friends?.Call("HasFriend", userId, otherUserId) is true;
         }
 
         private bool SameClan(ulong userId, ulong otherUserId)
         {
-            var clanResult = Clans?.Call("IsClanMember", userId.ToString(), otherUserId.ToString());
-            return clanResult is bool && (bool)clanResult;
+            return Clans?.Call("IsClanMember", userId.ToString(), otherUserId.ToString()) is true;
         }
 
         private bool AreAllies(ulong userId, ulong otherUserId)
         {
-            var clanResult = Clans?.Call("IsAllyPlayer", userId.ToString(), otherUserId.ToString());
-            return clanResult is bool && (bool)clanResult;
+            return Clans?.Call("IsAllyPlayer", userId.ToString(), otherUserId.ToString()) is true;
         }
 
         private bool ShouldTurretTargetDrone(AutoTurret turret, Drone drone)
@@ -743,7 +735,7 @@ namespace Oxide.Plugins
 
         private class SAMTargetComponent : FacepunchBehaviour, ISamSiteTarget
         {
-            public static HashSet<SAMTargetComponent> DroneComponents = new HashSet<SAMTargetComponent>();
+            public static HashSet<SAMTargetComponent> DroneComponents = new();
 
             public static void AddToDroneIfMissing(TargetableDrones plugin, Drone drone)
             {
@@ -773,7 +765,7 @@ namespace Oxide.Plugins
 
             public Vector3 Position => _transform.position;
 
-            public SamTargetType SAMTargetType => SamSite.targetTypeVehicle;
+            public SamTargetType SAMTargetType => targetTypeVehicle;
 
             public bool isClient => false;
 
@@ -818,9 +810,9 @@ namespace Oxide.Plugins
             public float DamageMultiplier = 4f;
 
             [JsonProperty("EnabledByNpcPrefab")]
-            private CaseInsensitiveDictionary<bool> EnabledByNpcPrefabName = new CaseInsensitiveDictionary<bool>();
+            private CaseInsensitiveDictionary<bool> EnabledByNpcPrefabName = new();
 
-            private Dictionary<uint, bool> EnabledByNpcPrefabId = new Dictionary<uint, bool>();
+            private Dictionary<uint, bool> EnabledByNpcPrefabId = new();
 
             public bool Enabled { get; private set; }
 
@@ -828,17 +820,15 @@ namespace Oxide.Plugins
 
             public bool IsAllowed(BaseEntity entity)
             {
-                bool canTarget;
-                return EnabledByNpcPrefabId.TryGetValue(entity.prefabID, out canTarget) && canTarget;
+                return EnabledByNpcPrefabId.TryGetValue(entity.prefabID, out var canTarget) && canTarget;
             }
 
             public bool OnServerInitialized()
             {
                 var changed = AddMissingNpcPrefabs();
 
-                foreach (var entry in EnabledByNpcPrefabName)
+                foreach (var (prefabPath, value) in EnabledByNpcPrefabName)
                 {
-                    var prefabPath = entry.Key;
                     var humanNpc = GameManager.server.FindPrefab(prefabPath)?.GetComponent<HumanNpc>();
                     if (humanNpc == null)
                     {
@@ -846,7 +836,7 @@ namespace Oxide.Plugins
                         continue;
                     }
 
-                    EnabledByNpcPrefabId[humanNpc.prefabID] = entry.Value;
+                    EnabledByNpcPrefabId[humanNpc.prefabID] = value;
                     Enabled = true;
                 }
 
@@ -921,10 +911,10 @@ namespace Oxide.Plugins
             }
 
             [JsonProperty("NPCTargeting")]
-            public NPCTargetingSettings NPCTargetingSettings = new NPCTargetingSettings();
+            public NPCTargetingSettings NPCTargetingSettings = new();
 
             [JsonProperty("DefaultSharingSettings")]
-            public SharingSettings DefaultSharingSettings = new SharingSettings();
+            public SharingSettings DefaultSharingSettings = new();
 
             [JsonIgnore]
             public bool EnableSamTargeting => EnablePlayerSAMTargeting || EnableStaticSAMTargeting;
@@ -935,7 +925,7 @@ namespace Oxide.Plugins
             }
         }
 
-        private Configuration GetDefaultConfig() => new Configuration();
+        private Configuration GetDefaultConfig() => new();
 
         #endregion
 
@@ -986,13 +976,10 @@ namespace Oxide.Plugins
 
             foreach (var key in currentWithDefaults.Keys)
             {
-                object currentRawValue;
-                if (currentRaw.TryGetValue(key, out currentRawValue))
+                if (currentRaw.TryGetValue(key, out var currentRawValue))
                 {
-                    var defaultDictValue = currentWithDefaults[key] as Dictionary<string, object>;
                     var currentDictValue = currentRawValue as Dictionary<string, object>;
-
-                    if (defaultDictValue != null)
+                    if (currentWithDefaults[key] is Dictionary<string, object> defaultDictValue)
                     {
                         if (currentDictValue == null)
                         {
@@ -1037,7 +1024,10 @@ namespace Oxide.Plugins
                 LogError(e.Message);
                 LogWarning($"Configuration file {Name}.json is invalid; using defaults");
                 LoadDefaultConfig();
-                _config.UsingDefaults = true;
+                if (_config != null)
+                {
+                    _config.UsingDefaults = true;
+                }
             }
         }
 
