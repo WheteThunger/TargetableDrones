@@ -13,7 +13,7 @@ using HumanNpc = global::HumanNPC;
 
 namespace Oxide.Plugins
 {
-    [Info("Targetable Drones", "WhiteThunder", "1.2.6")]
+    [Info("Targetable Drones", "WhiteThunder", "1.2.7")]
     [Description("Allows RC drones to be targeted by Auto Turrets and SAM Sites.")]
     internal class TargetableDrones : CovalencePlugin
     {
@@ -345,7 +345,7 @@ namespace Oxide.Plugins
         private bool IsDroneBeingControlled(Drone drone)
         {
             // Valid IQGuardian Drones are considered to be controlled.
-            return !drone.IsBeingControlled && !IsTargetableIQGuardianDrone(drone);
+            return drone.IsBeingControlled || IsTargetableIQGuardianDrone(drone);
         }
 
         private bool IsPlayerTargetExempt(ulong userId)
