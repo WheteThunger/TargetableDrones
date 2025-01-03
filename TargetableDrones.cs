@@ -13,7 +13,7 @@ using HumanNpc = global::HumanNPC;
 
 namespace Oxide.Plugins
 {
-    [Info("Targetable Drones", "WhiteThunder", "1.2.7")]
+    [Info("Targetable Drones", "WhiteThunder", "1.2.8")]
     [Description("Allows RC drones to be targeted by Auto Turrets and SAM Sites.")]
     internal class TargetableDrones : CovalencePlugin
     {
@@ -28,7 +28,7 @@ namespace Oxide.Plugins
 
         private Configuration _config;
 
-        private readonly object False = false;
+        private readonly object True = true;
 
         private float? SqrScanRadius;
 
@@ -139,7 +139,7 @@ namespace Oxide.Plugins
                 if (trigger.GetComponentInParent<BaseEntity>() is LaserDetector)
                     return null;
 
-                return False;
+                return True;
             }
 
             if (trigger is TargetTrigger)
@@ -149,7 +149,7 @@ namespace Oxide.Plugins
                 if (trigger.GetComponentInParent<BaseEntity>() is AutoTurret)
                     return null;
 
-                return False;
+                return True;
             }
 
             return null;
@@ -182,7 +182,7 @@ namespace Oxide.Plugins
                 return null;
 
             if (!ShouldTurretTargetDrone(turret, drone))
-                return False;
+                return True;
 
             return null;
         }
@@ -213,7 +213,7 @@ namespace Oxide.Plugins
 
             if (!ShouldSamSiteTargetDrone(samSite, drone)
                 || ExposedHooks.OnSamSiteTarget(samSite, drone) is false)
-                return False;
+                return True;
 
             return null;
         }
