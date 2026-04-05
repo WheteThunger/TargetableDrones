@@ -20,7 +20,7 @@ namespace Oxide.Plugins
         #region Fields
 
         [PluginReference]
-        private readonly Plugin Clans, Friends, DroneScaleManager, IQGuardianDrone;
+        private readonly Plugin Clans, Friends, IQGuardianDrone;
 
         private const string PermissionUntargetable = "targetabledrones.untargetable";
 
@@ -52,7 +52,6 @@ namespace Oxide.Plugins
             {
                 Unsubscribe(nameof(OnEntityEnter));
                 Unsubscribe(nameof(OnTurretTarget));
-                Unsubscribe(nameof(OnDroneScaled));
             }
         }
 
@@ -270,14 +269,6 @@ namespace Oxide.Plugins
             }
         }
 
-        private void OnDroneScaled(Drone drone, BaseEntity rootEntity, float scale, float previousScale)
-        {
-            if (scale == 1 || rootEntity.IsDestroyed)
-                return;
-
-            TurretTargetComponent.AddToRootEntityIfMissing(drone, rootEntity);
-        }
-
         #endregion
 
         #region Exposed Hooks
@@ -310,8 +301,7 @@ namespace Oxide.Plugins
 
         private static Drone GetParentDrone(BaseEntity entity)
         {
-            var sphereEntity = entity.GetParentEntity() as SphereEntity;
-            return sphereEntity != null ? sphereEntity.GetParentEntity() as Drone : null;
+            return entity.GetParentEntity() as Drone;
         }
 
         private static AutoTurret GetDroneTurret(Drone drone)
@@ -356,11 +346,6 @@ namespace Oxide.Plugins
         private bool IsTargetExempt(Drone drone)
         {
             return drone.isGrounded || drone.InSafeZone() || IsPlayerTargetExempt(GetDroneControllerOrOwnerId(drone));
-        }
-
-        private BaseEntity GetRootEntity(Drone drone)
-        {
-            return DroneScaleManager?.Call("API_GetRootEntity", drone) as BaseEntity;
         }
 
         private bool HasFriend(ulong userId, ulong otherUserId)
@@ -667,22 +652,9 @@ namespace Oxide.Plugins
 
         private class TurretTargetComponent : EntityComponent<BaseEntity>
         {
-            public static void AddToRootEntityIfMissing(Drone drone, BaseEntity rootEntity)
-            {
-                rootEntity.GetOrAddComponent<TurretTargetComponent>().InitForDrone(drone);
-            }
-
             public static void AddToDroneIfMissing(TargetableDrones plugin, Drone drone)
             {
-                // Must be added to the drone itself since the root entity (SphereEntity) is not a BaseCombatEntity.
                 drone.GetOrAddComponent<TurretTargetComponent>().InitForDrone(drone);
-
-                // Add to the root entity to ensure consistency with side effect of landing on cargo ship.
-                var rootEntity = plugin.GetRootEntity(drone);
-                if (rootEntity != null)
-                {
-                    AddToRootEntityIfMissing(drone, rootEntity);
-                }
             }
 
             private static void RemoveFromEntity(BaseEntity entity)
@@ -698,12 +670,6 @@ namespace Oxide.Plugins
             public static void RemoveFromDrone(TargetableDrones plugin, Drone drone)
             {
                 RemoveFromEntity(drone);
-
-                var rootEntity = plugin.GetRootEntity(drone);
-                if (rootEntity != null)
-                {
-                    RemoveFromEntity(rootEntity);
-                }
             }
 
             private Drone _ownerDrone;
